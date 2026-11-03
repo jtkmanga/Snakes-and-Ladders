@@ -1,0 +1,35 @@
+{
+  "name": "snakes-and-ladders-staging",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LOBBY",
+        "class_name": "Lobby"
+      },
+      {
+        "name": "ROOM",
+        "class_name": "GameRoom"
+      },
+      {
+        "name": "SCORES",
+        "class_name": "Scores"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Lobby",
+        "GameRoom",
+        "Scores"
+      ]
+    }
+  ]
+}
