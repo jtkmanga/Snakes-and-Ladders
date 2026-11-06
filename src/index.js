@@ -192,7 +192,12 @@ export class GameRoom extends DurableObject {
   // Rejoin is allowed only for a UID already reserved in this specific room.
   // Refreshing the short-lived bearer ticket revokes the previous ticket.
   async reissueTicket({userId}){
-    const game=this.load();
+    let game=this.load();
+    // Catch up skipped turns even if this room had no connected sockets.
+    if(game?.status==='playing'&&Date.now()>=game.turnEndsAt){
+      await this.timeout(game);
+      game=this.load();
+    }
     if(!game||!['waiting','playing'].includes(game.status)||
        (game.status==='waiting'&&Date.now()>=(game.waitExpiresAt||0)))return {ok:false};
     const seat=game.players.findIndex(p=>p.id===userId);
@@ -215,10 +220,37 @@ export class GameRoom extends DurableObject {
     const message=JSON.stringify({type:'state',state:this.safeState(game),connected:this.activeIds(),serverTime:Date.now()});
     for(const ws of this.ctx.getWebSockets())try{ws.send(message);}catch{}
   }
+  // Three consecutive full rounds without a single valid dice roll.
+  // One round is 3 turns x 20 seconds = 60 seconds.
+  maxNoRollTurns(){return 9;}
+  async scheduleTurnAlarm(game,retryPrize=false){
+    if(game.status!=='playing')return;
+    const remaining=Math.max(1,this.maxNoRollTurns()-(game.noRollTurns||0));
+    // When everyone disconnects, hibernate until the final no-roll deadline.
+    // The exact skipped turns are settled when a player reconnects or the alarm fires.
+    const wake=this.activeIds().length?game.turnEndsAt:
+      game.turnEndsAt+(remaining-1)*TURN_MS;
+    await this.ctx.storage.setAlarm(retryPrize?Math.min(wake,Date.now()+15_000):wake);
+  }
+  async closeForNoRolls(game){
+    game.status='abandoned';
+    game.closeReason='no_rolls_3_rounds';
+    game.closedAt=Date.now();
+    game.lastRoll=0;game.lastMove=0;
+    game.log=['🚪 ปิดห้องอัตโนมัติ: ไม่มีผู้เล่นทอยลูกเต๋าติดต่อกันครบ 3 รอบ',...game.log].slice(0,5);
+    this.save(game);this.broadcast(game);
+    for(const ws of this.ctx.getWebSockets()){
+      try{ws.close(4003,'Room closed: no rolls for 3 rounds');}catch{}
+    }
+  }
   async fetch(request){
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return json({error:'WebSocket required'},426);
     const ticket=new URL(request.url).searchParams.get('ticket');
-    const game=this.load();
+    let game=this.load();
+    if(game?.status==='playing'&&Date.now()>=game.turnEndsAt){
+      await this.timeout(game);
+      game=this.load();
+    }
     const player=game?.players.find(p=>p.ticket===ticket&&Date.now()-p.issuedAt<120_000);
     if(!player||!ticket||game.status==='abandoned')return json({error:'ไม่มีสิทธิ์เข้าห้อง'},403);
     for(const ws of this.ctx.getWebSockets()){
@@ -227,14 +259,12 @@ export class GameRoom extends DurableObject {
     const pair=new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     pair[1].serializeAttachment({pid:player.id});
-    if(game.status==='playing'&&game.idleDeadline){
-      game.idleDeadline=0;
-      game.turnEndsAt=Date.now()+TURN_MS;
-      this.save(game);
-      await this.ctx.storage.setAlarm(game.turnEndsAt);
+    if(game.status==='playing'){
+      // Reconnecting cannot reset the no-roll counter or extend the current turn.
+      await this.scheduleTurnAlarm(game);
     }
     if(game.status==='waiting'&&game.players.length===3&&this.activeIds().length===3){
-      game.status='playing';game.current=0;game.turnEndsAt=Date.now()+TURN_MS;
+      game.status='playing';game.current=0;game.noRollTurns=0;game.turnEndsAt=Date.now()+TURN_MS;
       game.log=['เริ่มเกม! ผู้เล่นแต่ละคนมีเวลา 20 วินาที',...game.log].slice(0,5);
       this.save(game);
       await this.ctx.storage.setAlarm(game.turnEndsAt);
@@ -247,10 +277,12 @@ export class GameRoom extends DurableObject {
     let msg;try{msg=JSON.parse(message);}catch{return;}
     if(msg?.type!=='roll')return;
     const game=this.load();if(!game||game.status!=='playing')return;
+    // Never accept a late roll. Settle every timed-out turn first.
+    if(Date.now()>=game.turnEndsAt){await this.timeout(game);return;}
     const pid=ws.deserializeAttachment()?.pid;
     if(game.players[game.current]?.id!==pid)return;
-    if(Date.now()>=game.turnEndsAt){await this.timeout(game);return;}
     const dice=randomInt(6)+1;
+    game.noRollTurns=0;
     executeRoll(game,game.current,dice);
     if(game.status==='playing')advance(game);
     this.save(game);
@@ -259,18 +291,32 @@ export class GameRoom extends DurableObject {
     const prizeRetry=await this.creditPrize(game);
     if(game.status==='finished')await this.creditWinner(this.load());
     const latest=this.load();
-    if(latest.status==='playing')await this.ctx.storage.setAlarm(prizeRetry?Math.min(latest.turnEndsAt,Date.now()+15_000):latest.turnEndsAt);
+    if(latest.status==='playing')await this.scheduleTurnAlarm(latest,prizeRetry);
     else if(prizeRetry)await this.ctx.storage.setAlarm(Date.now()+15_000);
   }
   async timeout(game){
     if(game.status!=='playing'||Date.now()<game.turnEndsAt)return;
-    const name=game.players[game.current]?.name||'ผู้เล่น';
-    game.log=[`⌛ ${name} หมดเวลา — ข้ามตาโดยไม่ทอย`,...game.log].slice(0,5);
-    game.lastRoll=0;
-    advance(game);
-    this.save(game);this.broadcast(game);
-    const needsRetry=game.boxUsed&&!game.prizeCredited;
-    await this.ctx.storage.setAlarm(needsRetry?Math.min(game.turnEndsAt,Date.now()+15_000):game.turnEndsAt);
+    const now=Date.now();
+    // Fast-forward missed turns based on their original deadlines (not "now").
+    // This is also safe for rooms with zero open WebSockets.
+    let expired=0;
+    while(game.status==='playing'&&now>=game.turnEndsAt&&expired<this.maxNoRollTurns()){
+      const name=game.players[game.current]?.name||'ผู้เล่น';
+      game.noRollTurns=(game.noRollTurns||0)+1;
+      expired++;
+      if(game.noRollTurns>=this.maxNoRollTurns()){
+        await this.closeForNoRolls(game);
+        break;
+      }
+      game.log=[`⌛ ${name} หมดเวลา — ข้ามตาโดยไม่ทอย (${game.noRollTurns}/9)`,...game.log].slice(0,5);
+      game.lastRoll=0;game.lastMove=0;
+      game.current=(game.current+1)%3;
+      game.turnEndsAt+=TURN_MS;
+    }
+    if(game.status==='playing'){
+      this.save(game);this.broadcast(game);
+      await this.scheduleTurnAlarm(game,game.boxUsed&&!game.prizeCredited);
+    }
   }
   async creditPrize(game){
     if(!game?.boxUsed||game.prizeCredited||!game.boxWinnerId||!game.boxReward)return false;
@@ -297,10 +343,10 @@ export class GameRoom extends DurableObject {
   }
   async alarm(){
     let game=this.load();if(!game)return;
-    // A partially filled room cannot hold users indefinitely.
     if(game.status==='waiting'){
       if(Date.now()>=(game.waitExpiresAt||0)){
         game.status='abandoned';
+        game.closeReason='waiting_expired';
         game.log=['ห้องรอผู้เล่นไม่ครบภายในเวลาที่กำหนด กรุณาจับคู่ใหม่',...game.log].slice(0,5);
         this.save(game);this.broadcast(game);
         for(const ws of this.ctx.getWebSockets())try{ws.close(4003,'Waiting room expired');}catch{}
@@ -309,23 +355,9 @@ export class GameRoom extends DurableObject {
     }
     const prizeRetry=await this.creditPrize(game);
     game=this.load();
-    if(game.status==='playing'&&this.activeIds().length===0){
-      const deadline=game.idleDeadline||Date.now()+90_000;
-      if(Date.now()>=deadline){
-        game.status='abandoned';
-        game.log=['ไม่มีผู้เล่นออนไลน์เป็นเวลานาน ห้องถูกปิดแล้ว',...game.log].slice(0,5);
-        this.save(game);
-        if(prizeRetry)await this.ctx.storage.setAlarm(Date.now()+15_000);
-        return;
-      }
-      game.idleDeadline=deadline;
-      this.save(game);
-      await this.ctx.storage.setAlarm(prizeRetry?Math.min(deadline,Date.now()+15_000):deadline);
-      return;
-    }
     if(game.status==='playing'){
       if(Date.now()>=game.turnEndsAt)await this.timeout(game);
-      else await this.ctx.storage.setAlarm(prizeRetry?Math.min(game.turnEndsAt,Date.now()+15_000):game.turnEndsAt);
+      else await this.scheduleTurnAlarm(game,prizeRetry);
     }else if(game.status==='finished'){
       if(!game.credited)await this.creditWinner(game);
       if(prizeRetry)await this.ctx.storage.setAlarm(Date.now()+15_000);
@@ -336,9 +368,8 @@ export class GameRoom extends DurableObject {
   async webSocketClose(ws){
     const game=this.load();
     if(game?.status==='playing'&&this.activeIds().length===0){
-      game.idleDeadline=Date.now()+90_000;
-      this.save(game);
-      await this.ctx.storage.setAlarm(game.idleDeadline);
+      // Single wake-up at the 3-round no-roll deadline, not an endless 20s loop.
+      await this.scheduleTurnAlarm(game,game.boxUsed&&!game.prizeCredited);
     }
     if(game)this.broadcast(game);
   }
