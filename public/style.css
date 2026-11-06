@@ -50,3 +50,12 @@ button,input{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:tran
 #payment-panel input{display:block;width:100%;margin:8px 0 15px;padding:12px;border-radius:10px;border:1px solid #dcb889;background:#fff}
 #payment-panel .outline-button{margin-top:8px}
 [data-buy]:disabled{opacity:.56;cursor:not-allowed}
+
+/* Persistent player nickname editor (mobile first) */
+.nickname-row{display:flex;align-items:stretch;gap:8px;min-width:0}
+.nickname-row #nickname{flex:1;min-width:0;width:0}
+.nickname-row #nickname[readonly]{background:#fff8e9;color:#72523c;cursor:default}
+.nickname-action{flex:0 0 auto;min-width:112px;border:2px solid #d7bc94;border-radius:14px;padding:8px 12px;background:#ebf3dc;color:#4f7852;font-weight:800;font-size:13px;box-shadow:0 3px 0 #dfcfb3;white-space:nowrap}
+.nickname-action:disabled{opacity:.55;cursor:wait}
+.nickname-action:focus-visible{outline:3px solid #69b5cc;outline-offset:2px}
+@media(max-width:380px){.nickname-action{min-width:102px;font-size:12px;padding:8px 7px}.nickname-row{gap:5px}}
