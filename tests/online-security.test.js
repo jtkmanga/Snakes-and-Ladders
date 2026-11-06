@@ -89,3 +89,17 @@ test('Win and box scoring is once per game despite duplicate calls',async()=>{
  assert.equal(await board.creditPrize({id:'a',name:'A',avatar:0,gameId:roomId,points:9999}),false);
  assert.equal((await board.getLeaders())[0].score,1010);
 });
+
+
+test('Empty playing rooms stop repeating timer alarms after idle grace',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.status='playing';game.turnEndsAt=Date.now()-100;room.save(game);
+ await room.alarm();
+ assert.equal(room.load().status,'playing');
+ assert(room.load().idleDeadline>Date.now());
+ const previous=room.load();previous.idleDeadline=Date.now()-1;room.save(previous);
+ await room.alarm();
+ assert.equal(room.load().status,'abandoned');
+});
