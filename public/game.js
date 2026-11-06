@@ -240,6 +240,11 @@ async function startOnline(){
       if(m.type==='state'){
         game={...m.state,connected:m.connected};clockOffset=m.serverTime-Date.now();
         waiting=game.status==='waiting';rollPending=false;
+        if(game.status==='abandoned'){
+          $('mode-status').textContent='⌛ ห้องรอครบเวลาที่กำหนด กรุณากดจับคู่ใหม่';
+          if(socket?.readyState===WebSocket.OPEN)socket.close(1000,'Waiting room expired');
+          return;
+        }
         $('mode-status').textContent=game.status==='waiting'?`🟡 รออีก ${Math.max(0,3-(game.connected||[]).length)} คน เพื่อเริ่มเกม`:game.status==='finished'?'🏆 เกมจบแล้ว กดจับคู่อีกครั้งเพื่อเล่นใหม่':'🟢 เชื่อมต่อห้องออนไลน์สำเร็จ';
         // Enter the board only after GameRoom has confirmed all three players.
         if((game.status==='playing'||game.status==='finished')&&view!=='game')showScreen('game');
