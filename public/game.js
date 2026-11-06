@@ -342,9 +342,14 @@ function renderAvatarPicker(){
 }
 async function renderLeaderboard(){
   if(mode==='demo'&&!googleUser){
+    $('score-mode').textContent='คะแนนทดลอง';
+    $('score-disclaimer').textContent='คะแนนทดลองเก็บในเบราว์เซอร์นี้ ไม่รวมในตารางอันดับออนไลน์';
+    $('lucky-footnote').textContent='โอกาสรวม 100% • รางวัล Lucky Box ในโหมดบอทเป็นคะแนนทดลองเท่านั้น';
     $('leaderboard').innerHTML=`<div class="score-row">🥇 ${labelForAvatar(selectedAvatar)} คุณ (ทดลอง) <b>${demoScore} คะแนน</b></div>`;
     return;
   }
+  $('score-disclaimer').textContent='คะแนนแข่งขันออนไลน์บันทึกบนเซิร์ฟเวอร์ • คะแนนจากเกมทดลองกับบอทไม่รวมในอันดับนี้';
+  $('lucky-footnote').textContent='โอกาสรวม 100% • Lucky Box ในห้องออนไลน์บันทึกคะแนนบนเซิร์ฟเวอร์ และไม่ถูกคูณด้วยไอเทม ×2';
   $('score-mode').textContent=`คะแนนออนไลน์ (${selectedServer.toUpperCase()})`;
   try{
     const result=await fetch('/api/leaderboard?server='+selectedServer);const {leaders=[]}=await result.json();
