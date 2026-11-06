@@ -73,7 +73,7 @@ export class Inventory extends DurableObject {
   async setProfile({uid,name}){
     if(typeof uid!=='string'||!uid||typeof name!=='string')return {ok:false,reason:'invalid_profile'};
     const clean=name.trim().normalize('NFC');
-    if(!clean||clean.length>18||/[<>\\x00-\\x1f\\x7f]/.test(clean))return {ok:false,reason:'invalid_name'};
+    if(!clean||clean.length>18||/[<>\x00-\x1f\x7f]/.test(clean))return {ok:false,reason:'invalid_name'};
     const profile={name:clean,updatedAt:Date.now()};
     this.ctx.storage.kv.put(`profile:${uid}`,profile);
     return {ok:true,profile};
