@@ -242,6 +242,8 @@ export class GameRoom extends DurableObject {
     for(const ws of this.ctx.getWebSockets()){
       try{ws.close(4003,'Room closed: no rolls for 3 rounds');}catch{}
     }
+    // Keep retrying an earned Lucky Box award if the scoreboard was temporarily unavailable.
+    if(game.boxUsed&&!game.prizeCredited)await this.ctx.storage.setAlarm(Date.now()+15_000);
   }
   async fetch(request){
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return json({error:'WebSocket required'},426);
