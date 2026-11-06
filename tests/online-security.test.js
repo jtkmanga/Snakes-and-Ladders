@@ -91,26 +91,26 @@ test('Win and box scoring is once per game despite duplicate calls',async()=>{
 });
 
 
-test('After eight consecutive skipped turns the room remains active',async()=>{
+test('After two consecutive skipped turns the room remains active',async()=>{
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
- game.status='playing';game.turnEndsAt=Date.now()-7*TURN_MS-100;room.save(game);
+ game.status='playing';game.turnEndsAt=Date.now()-TURN_MS-100;room.save(game);
  await room.timeout(game);
  assert.equal(room.load().status,'playing');
- assert.equal(room.load().noRollTurns,8);
+ assert.equal(room.load().noRollTurns,2);
  assert.equal(room.load().current,2);
 });
-test('The ninth consecutive skipped turn ends the room with no winner or points',async()=>{
+test('The third consecutive skipped turn ends the room with no winner or points',async()=>{
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
- game.status='playing';game.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(game);
+ game.status='playing';game.turnEndsAt=Date.now()-2*TURN_MS-100;room.save(game);
  await room.timeout(game);
  const result=room.load();
  assert.equal(result.status,'abandoned');
- assert.equal(result.closeReason,'no_rolls_3_rounds');
- assert.equal(result.noRollTurns,9);
+ assert.equal(result.closeReason,'no_rolls_3_turns');
+ assert.equal(result.noRollTurns,3);
  assert.equal(result.winnerId,null);
  assert.equal((await room.reissueTicket({userId:'a'})).ok,false);
 });
@@ -118,7 +118,7 @@ test('One player successfully rolling resets the no-roll counter and room contin
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
- game.status='playing';game.noRollTurns=8;game.boxAt=44;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
+ game.status='playing';game.noRollTurns=2;game.boxAt=44;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
  const socket={deserializeAttachment:()=>({pid:'a'}),send:()=>{}};
  room.ctx.getWebSockets().push(socket);
  await room.webSocketMessage(socket,JSON.stringify({type:'roll'}));
@@ -127,21 +127,21 @@ test('One player successfully rolling resets the no-roll counter and room contin
  assert.equal(room.load().players[0].pos,1);
  assert.equal(room.load().current,1);
  const after=room.load();
- after.turnEndsAt=Date.now()-TURN_MS-100;room.save(after);
+ after.turnEndsAt=Date.now()-100;room.save(after);
  await room.timeout(after);
  assert.equal(room.load().status,'playing');
- assert.equal(room.load().noRollTurns,2);
+ assert.equal(room.load().noRollTurns,1);
 });
-test('An empty room sets one consolidated alarm for three no-roll rounds',async()=>{
+test('An empty room sets one consolidated alarm for three skipped turns',async()=>{
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
  game.status='playing';game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
  await room.webSocketClose({});
- const deadline=game.turnEndsAt+8*TURN_MS;
+ const deadline=game.turnEndsAt+2*TURN_MS;
  assert.equal(room.ctx.alarmAt,deadline);
  const elapsed=room.load();
- elapsed.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(elapsed);
+ elapsed.turnEndsAt=Date.now()-2*TURN_MS-100;room.save(elapsed);
  await room.alarm();
  assert.equal(room.load().status,'abandoned');
 });
@@ -149,10 +149,10 @@ test('Rejoining the room cannot reset missed rolls or extend turn deadline',asyn
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map((id,seat)=>({...profile(id),pos:0,ticket:'old-'+seat,issuedAt:Date.now()}));
- game.status='playing';game.noRollTurns=7;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
+ game.status='playing';game.noRollTurns=2;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
  const renewed=await room.reissueTicket({userId:'b'});
  assert.equal(renewed.ok,true);
- assert.equal(room.load().noRollTurns,7);
+ assert.equal(room.load().noRollTurns,2);
  assert.equal(room.load().turnEndsAt,game.turnEndsAt);
 });
 test('Remaining one or two active players can keep a game alive with legitimate rolls',async()=>{
@@ -171,7 +171,7 @@ test('Remaining one or two active players can keep a game alive with legitimate 
 });
 
 // A room may close after 3 rounds while its earned prize still awaits credit.
-test('Lucky Box credit retries survive automatic closure after three silent rounds',async()=>{
+test('Lucky Box credit retries survive automatic closure after three silent turns',async()=>{
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({
    credit:async()=>true,creditPrize:async()=>{throw Error('Temporary score outage');}
  })}});
@@ -179,17 +179,17 @@ test('Lucky Box credit retries survive automatic closure after three silent roun
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
  game.server='free';game.boxUsed=true;game.boxWinnerId='a';game.boxReward=100;
  game.prizeCredited=false;game.status='playing';
- game.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(game);
+ game.turnEndsAt=Date.now()-2*TURN_MS-100;room.save(game);
  await room.alarm();
  assert.equal(room.load().status,'abandoned');
  assert.equal(room.load().prizeCredited,false);
  assert(room.ctx.alarmAt>Date.now(),'Award retry should be scheduled');
 });
-test('Even connected players are closed after nine skipped turns without rolling',async()=>{
+test('Even connected players are closed after three skipped turns without rolling',async()=>{
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
- game.status='playing';game.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(game);
+ game.status='playing';game.turnEndsAt=Date.now()-2*TURN_MS-100;room.save(game);
  const closed=[];
  for(const id of ['a','b','c'])room.ctx.getWebSockets().push({
    deserializeAttachment:()=>({pid:id}),send:()=>{},close:(code)=>closed.push([id,code])
