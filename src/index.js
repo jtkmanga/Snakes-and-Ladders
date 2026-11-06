@@ -300,11 +300,12 @@ export class GameRoom extends DurableObject {
         game.status='abandoned';
         game.log=['ไม่มีผู้เล่นออนไลน์เป็นเวลานาน ห้องถูกปิดแล้ว',...game.log].slice(0,5);
         this.save(game);
+        if(prizeRetry)await this.ctx.storage.setAlarm(Date.now()+15_000);
         return;
       }
       game.idleDeadline=deadline;
       this.save(game);
-      await this.ctx.storage.setAlarm(deadline);
+      await this.ctx.storage.setAlarm(prizeRetry?Math.min(deadline,Date.now()+15_000):deadline);
       return;
     }
     if(game.status==='playing'){
@@ -313,6 +314,8 @@ export class GameRoom extends DurableObject {
     }else if(game.status==='finished'){
       if(!game.credited)await this.creditWinner(game);
       if(prizeRetry)await this.ctx.storage.setAlarm(Date.now()+15_000);
+    }else if(game.status==='abandoned'&&prizeRetry){
+      await this.ctx.storage.setAlarm(Date.now()+15_000);
     }
   }
   async webSocketClose(ws){
