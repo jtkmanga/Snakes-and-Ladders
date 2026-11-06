@@ -91,15 +91,81 @@ test('Win and box scoring is once per game despite duplicate calls',async()=>{
 });
 
 
-test('Empty playing rooms stop repeating timer alarms after idle grace',async()=>{
+test('After eight consecutive skipped turns the room remains active',async()=>{
  const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
  const game=createGame('room-'+crypto.randomUUID());
  game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
- game.status='playing';game.turnEndsAt=Date.now()-100;room.save(game);
- await room.alarm();
+ game.status='playing';game.turnEndsAt=Date.now()-7*TURN_MS-100;room.save(game);
+ await room.timeout(game);
  assert.equal(room.load().status,'playing');
- assert(room.load().idleDeadline>Date.now());
- const previous=room.load();previous.idleDeadline=Date.now()-1;room.save(previous);
+ assert.equal(room.load().noRollTurns,8);
+ assert.equal(room.load().current,2);
+});
+test('The ninth consecutive skipped turn ends the room with no winner or points',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.status='playing';game.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(game);
+ await room.timeout(game);
+ const result=room.load();
+ assert.equal(result.status,'abandoned');
+ assert.equal(result.closeReason,'no_rolls_3_rounds');
+ assert.equal(result.noRollTurns,9);
+ assert.equal(result.winnerId,null);
+ assert.equal((await room.reissueTicket({userId:'a'})).ok,false);
+});
+test('One player successfully rolling resets the no-roll counter and room continues',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.status='playing';game.noRollTurns=8;game.boxAt=44;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
+ const socket={deserializeAttachment:()=>({pid:'a'}),send:()=>{}};
+ room.ctx.getWebSockets().push(socket);
+ await room.webSocketMessage(socket,JSON.stringify({type:'roll'}));
+ assert.equal(room.load().status,'playing');
+ assert.equal(room.load().noRollTurns,0);
+ assert.equal(room.load().players[0].pos,1);
+ assert.equal(room.load().current,1);
+ const after=room.load();
+ after.turnEndsAt=Date.now()-TURN_MS-100;room.save(after);
+ await room.timeout(after);
+ assert.equal(room.load().status,'playing');
+ assert.equal(room.load().noRollTurns,2);
+});
+test('An empty room sets one consolidated alarm for three no-roll rounds',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.status='playing';game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
+ await room.webSocketClose({});
+ const deadline=game.turnEndsAt+8*TURN_MS;
+ assert.equal(room.ctx.alarmAt,deadline);
+ const elapsed=room.load();
+ elapsed.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(elapsed);
  await room.alarm();
  assert.equal(room.load().status,'abandoned');
+});
+test('Rejoining the room cannot reset missed rolls or extend turn deadline',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map((id,seat)=>({...profile(id),pos:0,ticket:'old-'+seat,issuedAt:Date.now()}));
+ game.status='playing';game.noRollTurns=7;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
+ const renewed=await room.reissueTicket({userId:'b'});
+ assert.equal(renewed.ok,true);
+ assert.equal(room.load().noRollTurns,7);
+ assert.equal(room.load().turnEndsAt,game.turnEndsAt);
+});
+test('Remaining one or two active players can keep a game alive with legitimate rolls',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.status='playing';game.boxAt=44;game.turnEndsAt=Date.now()+TURN_MS;room.save(game);
+ const socket={deserializeAttachment:()=>({pid:'a'}),send:()=>{}};
+ room.ctx.getWebSockets().push(socket);
+ for(let round=0;round<5;round++){
+   const g=room.load();g.noRollTurns=2;g.current=0;g.turnEndsAt=Date.now()+TURN_MS;room.save(g);
+   await room.webSocketMessage(socket,JSON.stringify({type:'roll'}));
+   assert.equal(room.load().noRollTurns,0);
+   assert.equal(room.load().status,'playing');
+ }
 });
