@@ -8,6 +8,7 @@ let demoTimers=[],demoScore=Number(store.getItem('paperRaceDemoScore')||0),waiti
 let backendReady=false,rollPending=false,toastTimer;
 let lastAnimationKey=null,animationGeneration=0;const animatingSeats=new Set();
 let selectedServer='free',view='auth',googleUser=null,authClient=null,publicConfig=null,serverMe=null;
+let savedNickname='',nicknameLoading=false,nicknameSaving=false;
 const ITEM_KEYS={dice:'snlTrialWinBonusExpires',shield:'snlTrialShieldExpires'};
 const DAY_MS=86_400_000;
 function itemExpiry(k){return Number(store.getItem(ITEM_KEYS[k])||0)}
@@ -28,7 +29,54 @@ const humanId=(()=>{let id=store.getItem('paperRaceGuestId');if(!id){id=crypto.r
 const others=[1,2];
 function escapeText(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function labelForAvatar(index){return AVATARS[index]?.emoji||'🐱';}
-function playerName(){return ($('nickname').value.trim()||'ผู้เล่นของฉัน').slice(0,18);}
+function playerName(){return (savedNickname||$('nickname').value.trim()||'ผู้เล่นของฉัน').slice(0,18);}
+function updateNicknameControls(){
+  const field=$('nickname'),button=$('nickname-action'),hint=$('nickname-hint');
+  button.disabled=nicknameLoading||nicknameSaving;
+  if(nicknameLoading){
+    field.disabled=true;button.textContent='⏳ กำลังโหลด';
+    hint.textContent='กำลังดึงชื่อผู้เล่นจากบัญชี Google…';return;
+  }
+  field.disabled=false;
+  button.textContent=field.readOnly?'✏️ เปลี่ยนชื่อ':'💾 บันทึกชื่อ';
+  hint.textContent=field.readOnly
+    ?(googleUser?'✅ บันทึกกับบัญชี Google แล้ว ใช้ชื่อเดิมได้ทุกเครื่อง':'✅ จดจำชื่อในเบราว์เซอร์นี้แล้ว')
+    :(googleUser?'ตั้งชื่อแล้วกดบันทึก ชื่อจะอยู่กับบัญชี Google ตลอด':'ตั้งชื่อแล้วกดบันทึก ชื่อจะจำไว้ในเบราว์เซอร์นี้');
+}
+function applySavedNickname(name){
+  const clean=typeof name==='string'?name.trim():'';
+  savedNickname=clean;
+  $('nickname').value=clean;
+  $('nickname').readOnly=Boolean(clean);
+  nicknameLoading=false;updateNicknameControls();
+  if(view==='lobby')updateLobby();
+}
+async function saveNickname(){
+  if(nicknameSaving||nicknameLoading)return false;
+  const name=$('nickname').value.trim().normalize('NFC');
+  if(!name||name.length>18||/[<>\\x00-\\x1f\\x7f]/.test(name)){
+    showModal('ชื่อผู้เล่นไม่ถูกต้อง','โปรดตั้งชื่อยาว 1–18 ตัวอักษร โดยไม่ใช้สัญลักษณ์ < > หรืออักขระควบคุม','✏️');return false;
+  }
+  nicknameSaving=true;updateNicknameControls();
+  try{
+    let confirmed=name;
+    if(googleUser){
+      const uid=googleUser.uid;
+      const response=await authorizedFetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+      const result=await response.json();
+      if(!response.ok)throw Error(result.error||'บันทึกชื่อไม่สำเร็จ');
+      if(googleUser?.uid!==uid)throw Error('บัญชี Google เปลี่ยนไประหว่างบันทึกชื่อ');
+      confirmed=result.nickname;
+      if(serverMe)serverMe.nickname=confirmed;
+    }else store.setItem('snlGuestNickname',confirmed);
+    savedNickname=confirmed;$('nickname').value=confirmed;$('nickname').readOnly=true;
+    if(view==='lobby')updateLobby();
+    notice('✅ บันทึกชื่อ '+confirmed+' สำเร็จ');
+    return true;
+  }catch(e){
+    showModal('บันทึกชื่อไม่สำเร็จ',e.message||'กรุณาลองอีกครั้ง','⚠️');return false;
+  }finally{nicknameSaving=false;updateNicknameControls();}
+}
 function notice(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.add('show');toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3500);}
 function clearDemoTimers(){demoTimers.forEach(clearTimeout);demoTimers=[];}
 function putDemoTimer(fn,ms){demoTimers.push(setTimeout(fn,ms));}
@@ -224,6 +272,7 @@ function startDemo(){
 }
 async function startOnline(){
   if(!googleUser){showModal('กรุณาเข้าสู่ระบบก่อน','เลือกปุ่มเข้าสู่ระบบด้วย Google เพื่อเล่นออนไลน์ ระบบทดลองกับบอทยังเล่นได้โดยไม่ต้องล็อกอิน','🔐');return;}
+  if(nicknameLoading||!savedNickname){showModal('กรุณาตั้งชื่อผู้เล่น','กลับไปหน้าเข้าสู่เกม ตั้งชื่อ และกดบันทึกก่อนจับคู่ออนไลน์','✏️');return;}
   if(waiting)return;
   if(!backendReady){notice('โหมดออนไลน์ต้องเปิดผ่าน Cloudflare Worker ที่ Deploy แล้ว');return;}
   clearDemoTimers();if(socket)socket.close();socket=null;
@@ -295,7 +344,24 @@ async function initializeOnlineServices(){
       googleUser=u;
       $('google-btn').textContent=u?`✅ ${u.email||'Google'} • ออกจากระบบ`:'G เข้าสู่ระบบด้วย Google';
       $('auth-status').textContent=u?'✅ เข้าสู่ระบบ Google สำเร็จ':'🔐 กรุณาเข้าสู่ระบบด้วย Google เพื่อเล่นออนไลน์';
-      if(u){try{const r=await authorizedFetch('/api/me');if(r.ok)serverMe=await r.json();}catch{}}else serverMe=null;
+      if(u){
+        const uid=u.uid;
+        nicknameLoading=true;$('nickname').readOnly=true;updateNicknameControls();
+        try{
+          const r=await authorizedFetch('/api/me');
+          if(!r.ok)throw Error('โหลดข้อมูลโปรไฟล์ไม่สำเร็จ');
+          const profile=await r.json();
+          if(googleUser?.uid!==uid)return;
+          serverMe=profile;applySavedNickname(profile.nickname);
+        }catch{
+          if(googleUser?.uid!==uid)return;
+          serverMe=null;nicknameLoading=true;updateNicknameControls();
+          $('auth-status').textContent='⚠️ โหลดชื่อบัญชีไม่สำเร็จ กรุณารีเฟรชเกม';
+        }
+      }else{
+        serverMe=null;
+        applySavedNickname(store.getItem('snlGuestNickname')||'');
+      }
       if(view==='lobby'){updateLobby();renderLeaderboard();}
     });
   }catch(e){$('auth-status').textContent='⚠️ โหลด Google Login ไม่สำเร็จ กรุณาลองอีกครั้ง';console.warn('Firebase client initialization failed');}
@@ -346,11 +412,22 @@ $('roll-btn').addEventListener('click',()=>{
 });
 $('demo-btn').addEventListener('click',()=>startDemo());
 $('online-btn').addEventListener('click',()=>{if(mode==='online'&&waiting)return;startOnline();});
-$('nickname').addEventListener('change',()=>{if(mode==='demo'&&game){game.players[0].name=playerName();renderPlayers();}});
+$('nickname-action').addEventListener('click',async()=>{
+  if(nicknameLoading||nicknameSaving)return;
+  if($('nickname').readOnly){
+    $('nickname').readOnly=false;updateNicknameControls();$('nickname').focus();$('nickname').select();
+  }else await saveNickname();
+});
+$('nickname').addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&!$('nickname').readOnly){event.preventDefault();saveNickname();}
+});
 setInterval(renderClock,180);
 $('server-free').addEventListener('click',()=>chooseServer('free'));
 $('server-vip').addEventListener('click',()=>chooseServer('vip'));
 $('enter-btn').addEventListener('click',async()=>{
+ if(nicknameLoading){showModal('กำลังโหลดชื่อ','กรุณาลองอีกครั้งหลังโหลดบัญชี Google เสร็จ','⏳');return;}
+ if(!$('nickname').readOnly && !await saveNickname())return;
+ if(!savedNickname){showModal('กรุณาตั้งชื่อผู้เล่น','ใส่ชื่อแล้วกดบันทึกก่อนเข้าเกม','✏️');return;}
  if(selectedServer==='vip'){
    if(!googleUser){showModal('VIP ต้องล็อกอิน','โปรดเข้าสู่ระบบด้วย Google ก่อนสมัคร VIP','👑');return;}
    try{const r=await authorizedFetch('/api/me');const p=await r.json();if(!r.ok)throw Error(p.error);serverMe=p;
@@ -381,4 +458,4 @@ for(const item of ['dice','shield'])$(item==='dice'?'trial-dice':'trial-shield')
 });
 for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('click',()=>buyProduct(btn.dataset.buy));
 $('payment-submit').addEventListener('click',submitSlip);$('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;});
-renderAvatarPicker();renderLuckyTables();updateShopUI();chooseServer('free');showScreen('auth');detectServer();
+renderAvatarPicker();renderLuckyTables();updateShopUI();applySavedNickname(store.getItem('snlGuestNickname')||'');chooseServer('free');showScreen('auth');detectServer();
