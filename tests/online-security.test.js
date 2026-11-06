@@ -169,3 +169,33 @@ test('Remaining one or two active players can keep a game alive with legitimate 
    assert.equal(room.load().status,'playing');
  }
 });
+
+// A room may close after 3 rounds while its earned prize still awaits credit.
+test('Lucky Box credit retries survive automatic closure after three silent rounds',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({
+   credit:async()=>true,creditPrize:async()=>{throw Error('Temporary score outage');}
+ })}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.server='free';game.boxUsed=true;game.boxWinnerId='a';game.boxReward=100;
+ game.prizeCredited=false;game.status='playing';
+ game.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(game);
+ await room.alarm();
+ assert.equal(room.load().status,'abandoned');
+ assert.equal(room.load().prizeCredited,false);
+ assert(room.ctx.alarmAt>Date.now(),'Award retry should be scheduled');
+});
+test('Even connected players are closed after nine skipped turns without rolling',async()=>{
+ const room=new Room(fakeCtx(),{SCORES:{idFromName:x=>x,get:()=>({credit:async()=>true,creditPrize:async()=>true})}});
+ const game=createGame('room-'+crypto.randomUUID());
+ game.players=['a','b','c'].map(id=>({...profile(id),pos:0}));
+ game.status='playing';game.turnEndsAt=Date.now()-8*TURN_MS-100;room.save(game);
+ const closed=[];
+ for(const id of ['a','b','c'])room.ctx.getWebSockets().push({
+   deserializeAttachment:()=>({pid:id}),send:()=>{},close:(code)=>closed.push([id,code])
+ });
+ await room.timeout(game);
+ assert.equal(room.load().status,'abandoned');
+ assert.equal(closed.length,3);
+ assert(closed.every(([id,code])=>code===4003));
+});
