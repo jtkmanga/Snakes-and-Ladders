@@ -128,25 +128,34 @@ export default {
   }
 };
 
-// A tiny, serialized matchmaking queue: reserves exactly three unique seats.
+// One lobby per server. Duplicate matchmaking retries rejoin the existing room,
+// instead of reserving multiple seats for one Google UID.
 export class Lobby extends DurableObject {
   async assign(profile){
     return this.ctx.blockConcurrencyWhile(async()=>{
-      let waiting=this.ctx.storage.kv.get('waiting');
       const now=Date.now();
+      const key=`member:${profile.id}`;
+      const previous=this.ctx.storage.kv.get(key);
+      if(previous&&now-previous.at<60*60_000){
+        const stub=this.env.ROOM.get(this.env.ROOM.idFromName(previous.roomId));
+        const renewed=await stub.reissueTicket({userId:profile.id});
+        if(renewed.ok)return {room:previous.roomId,ticket:renewed.ticket,playerId:profile.id,seat:renewed.seat,rejoined:true};
+      }
+      let waiting=this.ctx.storage.kv.get('waiting');
       if(!waiting||waiting.count>=3||now-waiting.created>90_000){
         waiting={roomId:`room-${crypto.randomUUID()}`,count:0,created:now};
       }
       const ticket=crypto.randomUUID();
       const room=this.env.ROOM.get(this.env.ROOM.idFromName(waiting.roomId));
-      const accepted=await room.reserve({profile,ticket,roomId:waiting.roomId});
+      let accepted=await room.reserve({profile,ticket,roomId:waiting.roomId});
       if(!accepted.ok){
         waiting={roomId:`room-${crypto.randomUUID()}`,count:0,created:now};
-        const retry=await this.env.ROOM.get(this.env.ROOM.idFromName(waiting.roomId)).reserve({profile,ticket,roomId:waiting.roomId});
-        if(!retry.ok)throw Error('Room reservation failed');
+        accepted=await this.env.ROOM.get(this.env.ROOM.idFromName(waiting.roomId)).reserve({profile,ticket,roomId:waiting.roomId});
+        if(!accepted.ok)throw Error('Room reservation failed');
       }
       waiting.count++;
       this.ctx.storage.kv.put('waiting',waiting);
+      this.ctx.storage.kv.put(key,{roomId:waiting.roomId,at:now});
       return {room:waiting.roomId,ticket,playerId:profile.id,seat:waiting.count};
     });
   }
@@ -157,12 +166,27 @@ export class GameRoom extends DurableObject {
   save(game){this.ctx.storage.kv.put('game',game);}
   async reserve({profile,ticket,roomId}){
     let game=this.load()||createGame(roomId);
-    if(game.players.length===0)game.server=profile.server;
-    if(game.status!=='waiting'||game.players.length>=3||game.players.some(p=>p.id===profile.id)||game.server!==profile.server)return {ok:false};
-    game.players.push({id:profile.id,name:profile.name,avatar:profile.avatar,pos:0,shield:profile.shield||0,rewardX2:profile.rewardX2===true,stars:0,ticket,issuedAt:Date.now()});
-    // Future online entitlements must be checked from a trusted server-side purchase ledger.
+    const now=Date.now();
+    if(game.players.length===0){game.server=profile.server;game.waitExpiresAt=now+120_000;}
+    if(game.status!=='waiting'||now>=(game.waitExpiresAt||0)||game.players.length>=3||game.players.some(p=>p.id===profile.id)||game.server!==profile.server)return {ok:false};
+    game.players.push({id:profile.id,name:profile.name,avatar:profile.avatar,pos:0,shield:profile.shield||0,rewardX2:profile.rewardX2===true,stars:0,ticket,issuedAt:now});
     this.save(game);
+    if(game.players.length===1)await this.ctx.storage.setAlarm(game.waitExpiresAt);
     return {ok:true};
+  }
+  // Rejoin is allowed only for a UID already reserved in this specific room.
+  // Refreshing the short-lived bearer ticket revokes the previous ticket.
+  async reissueTicket({userId}){
+    const game=this.load();
+    if(!game||!['waiting','playing'].includes(game.status)||
+       (game.status==='waiting'&&Date.now()>=(game.waitExpiresAt||0)))return {ok:false};
+    const seat=game.players.findIndex(p=>p.id===userId);
+    if(seat<0)return {ok:false};
+    const ticket=crypto.randomUUID();
+    game.players[seat].ticket=ticket;
+    game.players[seat].issuedAt=Date.now();
+    this.save(game);
+    return {ok:true,ticket,seat:seat+1};
   }
   activeIds(){
     return [...new Set(this.ctx.getWebSockets().map(ws=>ws.deserializeAttachment()?.pid).filter(Boolean))];
@@ -181,7 +205,7 @@ export class GameRoom extends DurableObject {
     const ticket=new URL(request.url).searchParams.get('ticket');
     const game=this.load();
     const player=game?.players.find(p=>p.ticket===ticket&&Date.now()-p.issuedAt<120_000);
-    if(!player||!ticket)return json({error:'ไม่มีสิทธิ์เข้าห้อง'},403);
+    if(!player||!ticket||game.status==='abandoned')return json({error:'ไม่มีสิทธิ์เข้าห้อง'},403);
     for(const ws of this.ctx.getWebSockets()){
       if(ws.deserializeAttachment()?.pid===player.id){try{ws.close(4001,'Reconnected');}catch{}}
     }
@@ -252,6 +276,16 @@ export class GameRoom extends DurableObject {
   }
   async alarm(){
     let game=this.load();if(!game)return;
+    // A partially filled room cannot hold users indefinitely.
+    if(game.status==='waiting'){
+      if(Date.now()>=(game.waitExpiresAt||0)){
+        game.status='abandoned';
+        game.log=['ห้องรอผู้เล่นไม่ครบภายในเวลาที่กำหนด กรุณาจับคู่ใหม่',...game.log].slice(0,5);
+        this.save(game);this.broadcast(game);
+        for(const ws of this.ctx.getWebSockets())try{ws.close(4003,'Waiting room expired');}catch{}
+      }else await this.ctx.storage.setAlarm(game.waitExpiresAt);
+      return;
+    }
     const prizeRetry=await this.creditPrize(game);
     game=this.load();
     if(game.status==='playing'){
