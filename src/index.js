@@ -220,9 +220,8 @@ export class GameRoom extends DurableObject {
     const message=JSON.stringify({type:'state',state:this.safeState(game),connected:this.activeIds(),serverTime:Date.now()});
     for(const ws of this.ctx.getWebSockets())try{ws.send(message);}catch{}
   }
-  // Three consecutive full rounds without a single valid dice roll.
-  // One round is 3 turns x 20 seconds = 60 seconds.
-  maxNoRollTurns(){return 9;}
+  // Three consecutive turns without a valid roll (about 60 seconds).
+  maxNoRollTurns(){return 3;}
   async scheduleTurnAlarm(game,retryPrize=false){
     if(game.status!=='playing')return;
     const remaining=Math.max(1,this.maxNoRollTurns()-(game.noRollTurns||0));
@@ -234,13 +233,13 @@ export class GameRoom extends DurableObject {
   }
   async closeForNoRolls(game){
     game.status='abandoned';
-    game.closeReason='no_rolls_3_rounds';
+    game.closeReason='no_rolls_3_turns';
     game.closedAt=Date.now();
     game.lastRoll=0;game.lastMove=0;
-    game.log=['🚪 ปิดห้องอัตโนมัติ: ไม่มีผู้เล่นทอยลูกเต๋าติดต่อกันครบ 3 รอบ',...game.log].slice(0,5);
+    game.log=['🚪 ปิดห้องอัตโนมัติ: ไม่มีผู้เล่นทอยลูกเต๋าติดต่อกันครบ 3 เทิร์น',...game.log].slice(0,5);
     this.save(game);this.broadcast(game);
     for(const ws of this.ctx.getWebSockets()){
-      try{ws.close(4003,'Room closed: no rolls for 3 rounds');}catch{}
+      try{ws.close(4003,'Room closed: no rolls for 3 turns');}catch{}
     }
     // Keep retrying an earned Lucky Box award if the scoreboard was temporarily unavailable.
     if(game.boxUsed&&!game.prizeCredited)await this.ctx.storage.setAlarm(Date.now()+15_000);
@@ -310,7 +309,7 @@ export class GameRoom extends DurableObject {
         await this.closeForNoRolls(game);
         break;
       }
-      game.log=[`⌛ ${name} หมดเวลา — ข้ามตาโดยไม่ทอย (${game.noRollTurns}/9)`,...game.log].slice(0,5);
+      game.log=[`⌛ ${name} หมดเวลา — ข้ามตาโดยไม่ทอย (${game.noRollTurns}/3)`,...game.log].slice(0,5);
       game.lastRoll=0;game.lastMove=0;
       game.current=(game.current+1)%3;
       game.turnEndsAt+=TURN_MS;
