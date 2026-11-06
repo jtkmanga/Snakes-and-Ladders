@@ -292,9 +292,9 @@ async function startOnline(){
         game={...m.state,connected:m.connected};clockOffset=m.serverTime-Date.now();
         waiting=game.status==='waiting';rollPending=false;
         if(game.status==='abandoned'){
-          const inactivity=game.closeReason==='no_rolls_3_rounds';
+          const inactivity=game.closeReason==='no_rolls_3_turns';
           const message=inactivity
-            ?'🚪 ห้องปิดอัตโนมัติ เพราะไม่มีผู้เล่นทอยลูกเต๋าติดต่อกันครบ 3 รอบ (9 เทิร์น)'
+            ?'🚪 ห้องปิดอัตโนมัติ เพราะไม่มีผู้เล่นทอยลูกเต๋าติดต่อกันครบ 3 เทิร์น (ประมาณ 60 วินาที)'
             :'⌛ ห้องรอผู้เล่นไม่ครบภายในเวลาที่กำหนด';
           waiting=false;rollPending=false;
           showScreen('lobby');
@@ -313,8 +313,8 @@ async function startOnline(){
       if(mode!=='online'||socket!==roomSocket)return;
       waiting=false;rollPending=false;
       if(game?.status==='abandoned'||e.code===4003){
-        const message=game?.closeReason==='no_rolls_3_rounds'
-          ?'🚪 ห้องปิดแล้ว: ไม่มีผู้เล่นทอยครบ 3 รอบ'
+        const message=game?.closeReason==='no_rolls_3_turns'
+          ?'🚪 ห้องปิดแล้ว: ไม่มีผู้เล่นทอยครบ 3 เทิร์น'
           :'🚪 ห้องถูกปิดอัตโนมัติ กรุณาจับคู่ใหม่';
         $('mode-status').textContent=message;
         if(view==='game')showScreen('lobby');
