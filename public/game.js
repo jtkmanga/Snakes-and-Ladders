@@ -54,7 +54,7 @@ function applySavedNickname(name){
 async function saveNickname(){
   if(nicknameSaving||nicknameLoading)return false;
   const name=$('nickname').value.trim().normalize('NFC');
-  if(!name||name.length>18||/[<>\\x00-\\x1f\\x7f]/.test(name)){
+  if(!name||name.length>18||/[<>\x00-\x1f\x7f]/.test(name)){
     showModal('ชื่อผู้เล่นไม่ถูกต้อง','โปรดตั้งชื่อยาว 1–18 ตัวอักษร โดยไม่ใช้สัญลักษณ์ < > หรืออักขระควบคุม','✏️');return false;
   }
   nicknameSaving=true;updateNicknameControls();
