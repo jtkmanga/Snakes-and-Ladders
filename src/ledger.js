@@ -65,6 +65,19 @@ export class PaymentLedger extends DurableObject {
   }
 }
 export class Inventory extends DurableObject {
+  // A nickname belongs to the verified Firebase UID and persists across devices.
+  async getProfile(uid){
+    if(typeof uid!=='string'||!uid)return {name:null};
+    return this.ctx.storage.kv.get(`profile:${uid}`)||{name:null};
+  }
+  async setProfile({uid,name}){
+    if(typeof uid!=='string'||!uid||typeof name!=='string')return {ok:false,reason:'invalid_profile'};
+    const clean=name.trim().normalize('NFC');
+    if(!clean||clean.length>18||/[<>\\x00-\\x1f\\x7f]/.test(clean))return {ok:false,reason:'invalid_name'};
+    const profile={name:clean,updatedAt:Date.now()};
+    this.ctx.storage.kv.put(`profile:${uid}`,profile);
+    return {ok:true,profile};
+  }
   async getItems(uid){
     const all=this.ctx.storage.kv.get(`inventory:${uid}`)||{};
     return {win2:all.win2>Date.now()?all.win2:0,shield:all.shield>Date.now()?all.shield:0};
