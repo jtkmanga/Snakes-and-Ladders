@@ -284,14 +284,23 @@ async function startOnline(){
     const data=await res.json();if(!res.ok)throw Error(data.error||'จับคู่ไม่สำเร็จ');
     $('mode-status').textContent=`🟢 จองช่องที่ ${data.seat}/3 สำเร็จ — กำลังรอคนเข้าห้อง`;
     socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws?room=${encodeURIComponent(data.room)}&ticket=${encodeURIComponent(data.ticket)}`);
+    const roomSocket=socket;
     socket.onmessage=e=>{
+      if(socket!==roomSocket)return;
       let m;try{m=JSON.parse(e.data);}catch{return;}
       if(m.type==='state'){
         game={...m.state,connected:m.connected};clockOffset=m.serverTime-Date.now();
         waiting=game.status==='waiting';rollPending=false;
         if(game.status==='abandoned'){
-          $('mode-status').textContent='⌛ ห้องรอครบเวลาที่กำหนด กรุณากดจับคู่ใหม่';
-          if(socket?.readyState===WebSocket.OPEN)socket.close(1000,'Waiting room expired');
+          const inactivity=game.closeReason==='no_rolls_3_rounds';
+          const message=inactivity
+            ?'🚪 ห้องปิดอัตโนมัติ เพราะไม่มีผู้เล่นทอยลูกเต๋าติดต่อกันครบ 3 รอบ (9 เทิร์น)'
+            :'⌛ ห้องรอผู้เล่นไม่ครบภายในเวลาที่กำหนด';
+          waiting=false;rollPending=false;
+          showScreen('lobby');
+          $('mode-status').textContent=message+' • กดจับคู่เพื่อเริ่มห้องใหม่';
+          showModal('ห้องแข่งขันถูกปิดแล้ว',message+'\nคุณสามารถกดจับคู่ห้องใหม่ได้ทันที','🚪');
+          if(roomSocket.readyState===WebSocket.OPEN)roomSocket.close(1000,'Room expired');
           return;
         }
         $('mode-status').textContent=game.status==='waiting'?`🟡 รออีก ${Math.max(0,3-(game.connected||[]).length)} คน เพื่อเริ่มเกม`:game.status==='finished'?'🏆 เกมจบแล้ว กดจับคู่อีกครั้งเพื่อเล่นใหม่':'🟢 เชื่อมต่อห้องออนไลน์สำเร็จ';
@@ -300,8 +309,22 @@ async function startOnline(){
         render();renderLeaderboard();
       }else if(m.type==='error')notice(m.error);
     };
-    socket.onclose=()=>{if(mode==='online'){waiting=false;rollPending=false;$('mode-status').textContent='🔴 การเชื่อมต่อหลุด — กดจับคู่อีกครั้ง';if(game)render();}};
-    socket.onerror=()=>{if(mode==='online')notice('เชื่อมต่อห้องไม่ได้ กรุณาลองใหม่');};
+    socket.onclose=e=>{
+      if(mode!=='online'||socket!==roomSocket)return;
+      waiting=false;rollPending=false;
+      if(game?.status==='abandoned'||e.code===4003){
+        const message=game?.closeReason==='no_rolls_3_rounds'
+          ?'🚪 ห้องปิดแล้ว: ไม่มีผู้เล่นทอยครบ 3 รอบ'
+          :'🚪 ห้องถูกปิดอัตโนมัติ กรุณาจับคู่ใหม่';
+        $('mode-status').textContent=message;
+        if(view==='game')showScreen('lobby');
+        $('mode-status').textContent=message;
+      }else{
+        $('mode-status').textContent='🔴 การเชื่อมต่อหลุด — กดจับคู่อีกครั้ง';
+        if(game)render();
+      }
+    };
+    socket.onerror=()=>{if(mode==='online'&&socket===roomSocket)notice('เชื่อมต่อห้องไม่ได้ กรุณาลองใหม่');};
   }catch(err){waiting=false;$('mode-status').textContent=`🔴 ${err.message}`;notice(err.message);}
 }
 function renderLuckyTables(){
