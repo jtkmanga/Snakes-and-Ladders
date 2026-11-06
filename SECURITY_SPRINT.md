@@ -4,8 +4,8 @@
 - Idempotent matchmaking for the same Google UID; a retry reissues a seat ticket instead of reserving multiple slots.
 - Existing-room rejoin with ticket rotation.
 - Partially filled waiting rooms expire after 120 seconds.
-- Active rooms close only after **three consecutive full rounds without a successful dice roll** (9 timed-out turns × 20 seconds ≈ 180 seconds). Each valid roll resets the skipped-turn counter, even when the other one or two players are disconnected.
-- Rooms with no connected WebSockets coalesce their alarms until the no-roll deadline; reconnecting does not extend the clock or reset the skip counter.
+- Active rooms close only after **three consecutive skipped turns without a successful dice roll** (3 × 20 seconds ≈ 60 seconds). Each valid roll resets the skipped-turn counter, even when the other one or two players are disconnected.
+- Rooms with no connected WebSockets coalesce their alarms until the no-roll deadline (three turns); reconnecting does not extend the clock or reset the skip counter.
 - Closed rooms reject rejoin tickets and users can match into a new room.
 - Previously earned Lucky Box score is retried on transient scoreboard errors, including while the room becomes idle.
 - Game dice and leaderboard awards remain controlled by Durable Objects. No client-provided dice or score accepted.
