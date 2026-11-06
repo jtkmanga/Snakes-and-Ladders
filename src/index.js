@@ -212,6 +212,12 @@ export class GameRoom extends DurableObject {
     const pair=new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     pair[1].serializeAttachment({pid:player.id});
+    if(game.status==='playing'&&game.idleDeadline){
+      game.idleDeadline=0;
+      game.turnEndsAt=Date.now()+TURN_MS;
+      this.save(game);
+      await this.ctx.storage.setAlarm(game.turnEndsAt);
+    }
     if(game.status==='waiting'&&game.players.length===3&&this.activeIds().length===3){
       game.status='playing';game.current=0;game.turnEndsAt=Date.now()+TURN_MS;
       game.log=['เริ่มเกม! ผู้เล่นแต่ละคนมีเวลา 20 วินาที',...game.log].slice(0,5);
@@ -288,6 +294,19 @@ export class GameRoom extends DurableObject {
     }
     const prizeRetry=await this.creditPrize(game);
     game=this.load();
+    if(game.status==='playing'&&this.activeIds().length===0){
+      const deadline=game.idleDeadline||Date.now()+90_000;
+      if(Date.now()>=deadline){
+        game.status='abandoned';
+        game.log=['ไม่มีผู้เล่นออนไลน์เป็นเวลานาน ห้องถูกปิดแล้ว',...game.log].slice(0,5);
+        this.save(game);
+        return;
+      }
+      game.idleDeadline=deadline;
+      this.save(game);
+      await this.ctx.storage.setAlarm(deadline);
+      return;
+    }
     if(game.status==='playing'){
       if(Date.now()>=game.turnEndsAt)await this.timeout(game);
       else await this.ctx.storage.setAlarm(prizeRetry?Math.min(game.turnEndsAt,Date.now()+15_000):game.turnEndsAt);
@@ -298,6 +317,11 @@ export class GameRoom extends DurableObject {
   }
   async webSocketClose(ws){
     const game=this.load();
+    if(game?.status==='playing'&&this.activeIds().length===0){
+      game.idleDeadline=Date.now()+90_000;
+      this.save(game);
+      await this.ctx.storage.setAlarm(game.idleDeadline);
+    }
     if(game)this.broadcast(game);
   }
   async webSocketError(ws){
