@@ -28,7 +28,7 @@
         <div class="auth-heading"><span class="pet-sun">🌼</span><div><h1>ยินดีต้อนรับ!</h1><p>สร้างตัวละครและเข้าสู่สนามกันเลย</p></div></div>
         <button class="google-button" id="google-btn" type="button"><span class="google-g" aria-hidden="true">G</span> เข้าสู่ระบบด้วย Google</button>
         <div class="auth-notice" id="auth-status">🔒 Google Login ยังไม่เชื่อม Firebase — ใช้งานโหมดทดลองได้ก่อน</div>
-        <div class="input-group"><label for="nickname">ชื่อผู้เล่น</label><input id="nickname" maxlength="18" autocomplete="nickname" placeholder="เช่น น้องแมวชนะเลิศ" value="ผู้เล่นของฉัน" /><div class="input-hint">สูงสุด 18 ตัวอักษร • เปลี่ยนได้ก่อนเข้าเกม</div></div>
+        <div class="input-group"><label for="nickname">ชื่อผู้เล่น</label><div class="nickname-row"><input id="nickname" maxlength="18" autocomplete="nickname" placeholder="ตั้งชื่อผู้เล่น" value="" /><button type="button" id="nickname-action" class="nickname-action" aria-label="บันทึกหรือเปลี่ยนชื่อผู้เล่น">💾 บันทึกชื่อ</button></div><div class="input-hint" id="nickname-hint" aria-live="polite">ตั้งชื่อครั้งแรกแล้วบันทึกไว้ ใช้ชื่อเดิมได้ทุกครั้ง</div></div>
         <div class="pick-server-title">เลือกเซิร์ฟเวอร์</div>
         <div class="server-choices">
           <button class="server-choice selected" id="server-free" type="button" aria-pressed="true"><span class="server-icon">🌿</span><span class="server-text"><b>Free Server</b><small>เล่นฟรี ไม่จำกัดจำนวนสมาชิก</small></span><span class="server-cost">ฟรี</span></button>
