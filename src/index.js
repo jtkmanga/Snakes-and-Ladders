@@ -35,7 +35,7 @@ export default {
       merchant:paymentConfigured(env)?{name:env.MERCHANT_DISPLAY_NAME||null,account:env.MERCHANT_PUBLIC_ACCOUNT||null}:null
     });
     // All mutations require a verified Firebase Google ID token and same-origin request.
-    const protectedAPI=url.pathname==='/api/me'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
+    const protectedAPI=url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
     let user=null;
     if(protectedAPI){
       if(!requireSameOrigin(request))return json({error:'Origin not allowed'},403);
@@ -48,8 +48,21 @@ export default {
     if(url.pathname==='/api/me'&&request.method==='GET')return json({
       id:user.id,email:user.email,
       vip:await vip().hasAccess(user.id),
-      items:await items().getItems(user.id)
+      items:await items().getItems(user.id),
+      nickname:(await items().getProfile(user.id)).name
     });
+    if(url.pathname==='/api/profile'&&request.method==='POST'){
+      if(Number(request.headers.get('Content-Length')||0)>1000)return json({error:'ข้อมูลชื่อใหญ่เกินไป'},413);
+      let body;try{body=await request.json();}catch{return json({error:'รูปแบบข้อมูลไม่ถูกต้อง'},400);}
+      const result=await items().setProfile({uid:user.id,name:body?.name});
+      if(!result.ok)return json({error:'ชื่อผู้เล่นต้องมี 1–18 ตัวอักษร และไม่มีสัญลักษณ์ต้องห้าม'},400);
+      // Update old leaderboard labels without modifying earned points.
+      await Promise.allSettled(['free','vip'].map(server=>
+        env.SCORES.get(env.SCORES.idFromName(`scores-${server}-v1`))
+          .rename({id:user.id,name:result.profile.name})
+      ));
+      return json({ok:true,nickname:result.profile.name});
+    }
     if(url.pathname==='/api/orders'&&request.method==='POST'){
       if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
       let body;try{body=await request.json();}catch{return json({error:'Bad JSON'},400);}
@@ -100,7 +113,9 @@ export default {
       if(!server)return json({error:'เลือกเซิร์ฟเวอร์ให้ถูกต้อง'},400);
       if(server==='vip'&&!await vip().hasAccess(user.id))return json({error:'ต้องมีสมาชิก VIP ที่ยังไม่หมดอายุ'},403);
       const inventory=await items().getItems(user.id);
-      const profile={id:user.id,name:clampName(body.name),avatar:Number.isInteger(body.avatar)&&body.avatar>=0&&body.avatar<AVATARS.length?body.avatar:0,
+      const savedName=(await items().getProfile(user.id)).name;
+      if(!savedName)return json({error:'กรุณาบันทึกชื่อผู้เล่นก่อนจับคู่'},409);
+      const profile={id:user.id,name:savedName,avatar:Number.isInteger(body.avatar)&&body.avatar>=0&&body.avatar<AVATARS.length?body.avatar:0,
         server,shield:inventory.shield>Date.now()?1:0,rewardX2:inventory.win2>Date.now()};
       try{
         const lobby=env.LOBBY.get(env.LOBBY.idFromName(`lobby-${server}-v1`));
@@ -356,6 +371,15 @@ export class Scores extends DurableObject {
     return true;
   }
   async getLeaders(){return this.ctx.storage.kv.get('leaders')||[];}
+  async rename({id,name}){
+    if(!validId(id)||typeof name!=='string'||!name.trim())return false;
+    const leaders=this.ctx.storage.kv.get('leaders')||[];
+    const next=leaders.map(p=>p.id===id?{...p,name:clampName(name)}:p);
+    if(next.some((p,i)=>p.name!==leaders[i].name)){
+      this.ctx.storage.kv.put('leaders',next);return true;
+    }
+    return false;
+  }
 }
 
 // One globally named Durable Object for a hard cap of 100 ACTIVE VIP subscribers.
