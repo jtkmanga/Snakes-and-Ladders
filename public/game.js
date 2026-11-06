@@ -239,8 +239,10 @@ async function startOnline(){
       let m;try{m=JSON.parse(e.data);}catch{return;}
       if(m.type==='state'){
         game={...m.state,connected:m.connected};clockOffset=m.serverTime-Date.now();
-        waiting=false;rollPending=false;
-        $('mode-status').textContent=game.status==='waiting'?`🟡 รออีก ${3-(game.connected||[]).length} คน เพื่อเริ่มเกม`:game.status==='finished'?'🏆 เกมจบแล้ว กดจับคู่อีกครั้งเพื่อเล่นใหม่':'🟢 เชื่อมต่อห้องออนไลน์สำเร็จ';
+        waiting=game.status==='waiting';rollPending=false;
+        $('mode-status').textContent=game.status==='waiting'?`🟡 รออีก ${Math.max(0,3-(game.connected||[]).length)} คน เพื่อเริ่มเกม`:game.status==='finished'?'🏆 เกมจบแล้ว กดจับคู่อีกครั้งเพื่อเล่นใหม่':'🟢 เชื่อมต่อห้องออนไลน์สำเร็จ';
+        // Enter the board only after GameRoom has confirmed all three players.
+        if((game.status==='playing'||game.status==='finished')&&view!=='game')showScreen('game');
         render();renderLeaderboard();
       }else if(m.type==='error')notice(m.error);
     };
