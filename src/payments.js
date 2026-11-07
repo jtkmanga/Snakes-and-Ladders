@@ -11,7 +11,12 @@ function providerEndpoint(env){
   if(base.protocol!=='https:'||!(base.hostname==='slip2go.com'||base.hostname.endsWith('.slip2go.com'))||base.username||base.password||base.port||base.search||base.hash||base.pathname!=='/')throw Error('invalid Slip2Go API origin');
   return new URL('/api/verify-slip/qr-image/info',base).toString();
 }
-export function paymentConfigured(env){return Boolean(env.SLIP2GO_SECRET&&env.SLIP2GO_API_BASE_URL&&env.MERCHANT_ACCOUNT_TYPE&&env.MERCHANT_ACCOUNT_NUMBER&&env.MERCHANT_DISPLAY_NAME&&env.MERCHANT_PUBLIC_ACCOUNT&&env.PAYMENTS_ENABLED==='true');}
+// PromptPay QR checkout only. Do not require or publish a full account number.
+export function paymentConfigured(env){
+  return Boolean(env.PAYMENTS_ENABLED==='true'&&env.SLIP2GO_SECRET&&env.SLIP2GO_API_BASE_URL
+    &&env.MERCHANT_ACCOUNT_TYPE==='02001'&&/^0[689]\d{8}$/.test(env.MERCHANT_ACCOUNT_NUMBER||'')
+    &&env.MERCHANT_DISPLAY_NAME);
+}
 export function validateSlipResponse(answer,price){
   // The provider's 200200 indicates the requested receiver/amount/duplicate checks succeeded.
   if(String(answer?.code)!=='200200')throw new Error('สลิปไม่ผ่านเงื่อนไขการตรวจสอบ');
