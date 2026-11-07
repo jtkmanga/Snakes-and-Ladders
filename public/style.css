@@ -59,3 +59,13 @@ button,input{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:tran
 .nickname-action:disabled{opacity:.55;cursor:wait}
 .nickname-action:focus-visible{outline:3px solid #69b5cc;outline-offset:2px}
 @media(max-width:380px){.nickname-action{min-width:102px;font-size:12px;padding:8px 7px}.nickname-row{gap:5px}}
+
+/* PromptPay QR checkout: image is emitted by the authenticated Worker only. */
+.payment-qr-section{display:grid;justify-items:center;gap:10px;margin:14px auto 18px}
+.payment-qr-image{background:#fff;border:2px solid #e5c6a6;border-radius:16px;padding:14px;min-height:230px;width:min(300px,100%);display:grid;place-items:center;text-align:center;color:#8c684c;box-shadow:0 4px 12px #9e74541a}
+.payment-qr-image img{width:min(260px,100%);height:auto;display:block}
+.payment-qr-image img[hidden]{display:none}
+#payment-qr-disabled{font-size:14px;padding:20px;max-width:240px}
+#payment-qr-disabled[hidden],#payment-qr-save[hidden]{display:none!important}
+.payment-qr-help{max-width:370px;text-align:center;line-height:1.55;margin:2px auto!important}
+#payment-qr-save{width:100%;max-width:310px;text-align:center;display:inline-block;text-decoration:none}
