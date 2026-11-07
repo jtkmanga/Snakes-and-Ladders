@@ -1,6 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { getAuthorizedUser, requireSameOrigin } from './security.js';
 import { PRODUCTS, paymentConfigured, verifySlip, transferFingerprint } from './payments.js';
+import { createPromptPayPayload } from './promptpay.js';
+import qrcode from './vendor/qrcode.mjs';
 export { PaymentLedger, Inventory } from './ledger.js';
 import { AVATARS, LUCKY_PRIZES, VIP_LIMIT, VIP_DURATION_MS, createGame, executeRoll, advance, randomInt, TURN_MS } from '../public/rules.js';
 
@@ -41,7 +43,7 @@ export default {
         apiKey:env.FIREBASE_API_KEY,authDomain:env.FIREBASE_AUTH_DOMAIN,projectId:env.FIREBASE_PROJECT_ID,appId:env.FIREBASE_APP_ID
       }:null,
       paymentsEnabled:paymentConfigured(env),
-      merchant:paymentConfigured(env)?{name:env.MERCHANT_DISPLAY_NAME||null,account:env.MERCHANT_PUBLIC_ACCOUNT||null}:null
+      merchant:paymentConfigured(env)?{name:env.MERCHANT_DISPLAY_NAME||null,method:'promptpay_qr',account:null}:null
     });
     // All mutations require a verified Firebase Google ID token and same-origin request.
     const protectedAPI=url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
@@ -89,12 +91,35 @@ export default {
       }
       return json({order:publicOrder(order)},201);
     }
-    const orderMatch=url.pathname.match(/^\/api\/orders\/(order-[a-f0-9-]{36})(?:\/(verify|reconcile))?$/);
+    const orderMatch=url.pathname.match(/^\/api\/orders\/(order-[a-f0-9-]{36})(?:\/(verify|reconcile|qr))?$/);
     if(orderMatch){
       const [,id,action]=orderMatch;
       const current=await ledger().get(id,user.id);
       if(!current)return json({error:'ไม่พบคำสั่งซื้อ'},404);
       if(!action&&request.method==='GET')return json({order:publicOrder(current)});
+      // A QR is issued only for the authenticated owner's unexpired pending order.
+      // The full PromptPay number must never be serialized into public JSON or HTML.
+      if(action==='qr'&&request.method==='GET'){
+        if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
+        if(current.status!=='pending'||Date.now()>current.expires_at)return json({error:'คำสั่งซื้อไม่อยู่ในสถานะชำระเงินได้'},409);
+        try{
+          const payload=createPromptPayPayload(env.MERCHANT_ACCOUNT_NUMBER,current.amount);
+          const qr=qrcode(0,'M');
+          qr.addData(payload);qr.make();
+          const svg=qr.createSvgTag({cellSize:6,margin:24,scalable:true});
+          return new Response(svg,{status:200,headers:{
+            'Content-Type':'image/svg+xml; charset=utf-8',
+            'Cache-Control':'private, no-store',
+            'Referrer-Policy':'no-referrer',
+            'X-Content-Type-Options':'nosniff',
+            'Cross-Origin-Resource-Policy':'same-origin',
+            'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; sandbox"
+          }});
+        }catch(e){
+          console.warn('PromptPay QR generation error',String(e?.name||'failure'));
+          return json({error:'สร้าง QR ชำระเงินไม่สำเร็จ'},503);
+        }
+      }
       if(action==='reconcile'&&request.method==='POST'){
         return await fulfillOrder(current,user,env);
       }
