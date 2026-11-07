@@ -395,6 +395,10 @@ async function initializeOnlineServices(){
   }catch(e){$('auth-status').textContent='⚠️ โหลด Google Login ไม่สำเร็จ กรุณาลองอีกครั้ง';console.warn('Firebase client initialization failed');}
   $('payment-availability').textContent=publicConfig.paymentsEnabled?'🧾 เปิดชำระเงินผ่านสลิป (ตรวจสอบจริง)':'🔒 ยังไม่เปิดรับชำระเงินจริง';
   for(const btn of document.querySelectorAll('[data-buy]'))btn.disabled=!publicConfig.paymentsEnabled;
+  $('vip-buy').disabled=!publicConfig.paymentsEnabled;
+  $('vip-buy').textContent=publicConfig.paymentsEnabled
+    ?'👑 สมัคร VIP ฿100 / 30 วัน'
+    :'👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)';
 }
 async function buyProduct(sku){
   if(!publicConfig?.paymentsEnabled){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
@@ -518,6 +522,7 @@ for(const item of ['dice','shield'])$(item==='dice'?'trial-dice':'trial-shield')
  showModal('ไอเทมทดลองเปิดใช้งานแล้ว',`${item==='dice'?'รางวัลชนะ ×2':'เกราะกันงู'} ใช้ทดลองได้ 24 ชั่วโมงในโหมดบอทเท่านั้น\n${item==='dice'?'ได้รับคะแนนชนะเกมเป็น 20 คะแนน จากปกติ 10 คะแนน (ไม่คูณคะแนน Lucky Box และไม่เพิ่มจำนวนช่องเดิน)':'เริ่มเกมใหม่แต่ละรอบจะป้องกันงูได้ 1 ครั้ง'}\nไม่มีการชำระเงินจริง`,'🎁');
 });
 for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('click',()=>buyProduct(btn.dataset.buy));
+$('vip-buy').addEventListener('click',()=>buyProduct('vip'));
 $('payment-submit').addEventListener('click',submitSlip);
 $('payment-reconcile').addEventListener('click',reconcilePayment);
 $('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;});
