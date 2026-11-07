@@ -1,0 +1,64 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "snakes-and-ladders-staging",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LOBBY",
+        "class_name": "Lobby"
+      },
+      {
+        "name": "ROOM",
+        "class_name": "GameRoom"
+      },
+      {
+        "name": "SCORES",
+        "class_name": "Scores"
+      },
+      {
+        "name": "VIP",
+        "class_name": "VipMemberships"
+      },
+      {
+        "name": "PAYMENTS",
+        "class_name": "PaymentLedger"
+      },
+      {
+        "name": "ITEMS",
+        "class_name": "Inventory"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Lobby",
+        "GameRoom",
+        "Scores"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "VipMemberships"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "PaymentLedger",
+        "Inventory"
+      ]
+    }
+  ],
+  "vars": {
+    "PAYMENTS_ENABLED": "false"
+  }
+}

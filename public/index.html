@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fbecd6" />
+  <meta name="description" content="Snakes & Ladders เกมกระดานงูบันได แข่งกัน 3 คน ถึง 100 ก่อนรับ 10 คะแนน" />
+  <title>Snakes & Ladders — ทอย ลุ้น ถึง 100</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+ <main class="shell app-shell">
+  <header class="app-topbar">
+    <div class="app-logo"><span class="logo-emoji">🐍</span><span>Snakes <em>&</em> Ladders<small>ทอย • ลุ้น • ถึง 100</small></span></div>
+    <div class="app-actions"><span class="preview-pill">● DEMO</span><button id="menu-btn" class="menu-icon" type="button" aria-label="เปิดเมนู">☰</button></div>
+  </header>
+
+  <section id="screen-auth" class="screen active" aria-label="เข้าสู่เกม">
+    <div class="auth-grid">
+      <div class="welcome-art">
+       <div class="welcome-sticker">🎲 เกมงูบันไดออนไลน์ 3 คน / ห้อง</div>
+       <div class="welcome-title">สนุกทุกตา<br/><span>ลุ้นทุกช่อง!</span></div>
+       <div class="welcome-desc">เดินให้ถึงช่อง 100 ก่อนเพื่อน ชนะรับ <b>+10 คะแนน</b> 🏆</div>
+       <div class="showcase-board" aria-hidden="true"><span class="floating-snake">🐍</span><span class="float-ladder">🪜</span><span class="float-dice">🎲</span><span class="float-chest">🎁</span><span class="float-cat">🐱</span><span class="float-bunny">🐰</span></div>
+       <div class="hero-foot"><span>⏱️ ตาละ 20 วินาที</span><span>🎁 กล่องสุ่ม 1 กล่อง</span></div>
+      </div>
+      <div class="auth-card">
+        <div class="auth-heading"><span class="pet-sun">🌼</span><div><h1>ยินดีต้อนรับ!</h1><p>สร้างตัวละครและเข้าสู่สนามกันเลย</p></div></div>
+        <button class="google-button" id="google-btn" type="button"><span class="google-g" aria-hidden="true">G</span> เข้าสู่ระบบด้วย Google</button>
+        <div class="auth-notice" id="auth-status">🔒 Google Login ยังไม่เชื่อม Firebase — ใช้งานโหมดทดลองได้ก่อน</div>
+        <div class="input-group"><label for="nickname">ชื่อผู้เล่น</label><div class="nickname-row"><input id="nickname" maxlength="18" autocomplete="nickname" placeholder="ตั้งชื่อผู้เล่น" value="" /><button type="button" id="nickname-action" class="nickname-action" aria-label="บันทึกหรือเปลี่ยนชื่อผู้เล่น">💾 บันทึกชื่อ</button></div><div class="input-hint" id="nickname-hint" aria-live="polite">ตั้งชื่อครั้งแรกแล้วบันทึกไว้ ใช้ชื่อเดิมได้ทุกครั้ง</div></div>
+        <div class="pick-server-title">เลือกเซิร์ฟเวอร์</div>
+        <div class="server-choices">
+          <button class="server-choice selected" id="server-free" type="button" aria-pressed="true"><span class="server-icon">🌿</span><span class="server-text"><b>Free Server</b><small>เล่นฟรี ไม่จำกัดจำนวนสมาชิก</small></span><span class="server-cost">ฟรี</span></button>
+          <button class="server-choice" id="server-vip" type="button" aria-pressed="false"><span class="server-icon">👑</span><span class="server-text"><b>VIP Server</b><small>รับสมัคร VIP สูงสุด 100 คน • 30 วัน</small><small id="vip-capacity">ยังไม่เปิดรับสมัคร</small></span><span class="server-cost">฿100<small>/30 วัน</small></span></button>
+        </div>
+        <button class="outline-button" id="vip-buy" type="button" disabled>👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)</button>
+        <button class="outline-button" id="payment-preview" type="button">👀 ดูตัวอย่างชำระด้วย QR (ยังไม่รับเงินจริง)</button>
+        <button class="primary-button" id="enter-btn" type="button">เข้าสู่เกมทดลอง <span>➜</span></button>
+        <p class="auth-footnote">Google Login และชำระเงินจริงเปิดได้เมื่อกำหนดค่าเซิร์ฟเวอร์ครบ • ปุ่มทดลองยังฟรี</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="payment-panel" hidden aria-label="ยืนยันชำระเงิน">
+    <h2>📱 ชำระด้วย QR พร้อมเพย์ • ตรวจสลิปผ่าน Slip2Go</h2>
+    <p>เลขคำสั่งซื้อ: <strong id="payment-order">—</strong></p>
+    <p>ยอดโอน: <strong id="payment-amount">—</strong></p>
+    <p>ร้านรับเงิน: <strong id="payment-recipient">—</strong></p>
+    <div id="payment-qr-section" class="payment-qr-section" aria-live="polite">
+      <div class="payment-qr-image" id="payment-qr-image">
+        <img id="payment-qr" alt="QR พร้อมเพย์ตามยอดคำสั่งซื้อ" hidden />
+        <span id="payment-qr-disabled">🔒 QR จะปรากฏหลังเปิดรับชำระเงินจริงและยืนยันบัญชีรับเงิน</span>
+      </div>
+      <p class="payment-qr-help">บันทึกภาพ QR เพื่อเปิดในแอปธนาคารบนมือถือ แล้วแนบสลิปจริงด้านล่าง • QR มีข้อมูลพร้อมเพย์ที่สามารถถอดรหัสได้ แม้ไม่แสดงเบอร์เป็นข้อความ</p>
+      <a id="payment-qr-save" class="outline-button" href="#" download="snakes-ladders-promptpay.png" hidden>📥 บันทึกภาพ QR</a>
+    </div>
+    <label for="payment-slip">แนบภาพสลิป PNG/JPG (ไม่เกิน 4MB)</label>
+    <input id="payment-slip" type="file" accept="image/png,image/jpeg" />
+    <p id="payment-progress" role="status">ยังไม่ได้สร้างคำสั่งซื้อ</p>
+    <button id="payment-submit" class="primary-button" type="button">ตรวจสอบสลิป</button>
+    <button id="payment-reconcile" class="outline-button" type="button" hidden>🔄 ตรวจสถานะสิทธิ์ที่ชำระแล้ว (ไม่โอนซ้ำ)</button>
+    <button id="payment-close" class="outline-button" type="button">ปิด</button>
+    <p>หากโอนแล้วมีปัญหา อย่าโอนซ้ำ โปรดแจ้งหมายเลขคำสั่งซื้อแก่ผู้ดูแล</p>
+  </section>
+  <section id="screen-lobby" class="screen" aria-label="หน้า Lobby">
+    <div class="lobby-welcome"><div><div class="welcome-kicker">🌸 ยินดีต้อนรับสู่กระดานมหาสนุก</div><h1>พร้อมแข่งหรือยัง <span id="welcome-name">ผู้เล่นของฉัน</span>?</h1><div class="lobby-subtitle">เลือกตัวละครคู่ใจ แล้วหาห้องแข่งกับเพื่อนอีก 2 คน</div></div><div class="welcome-mascot" id="welcome-mascot">🐱</div></div>
+    <div class="lobby-metrics">
+      <div class="metric"><span>🌿 เซิร์ฟเวอร์</span><strong id="lobby-server">FREE</strong></div>
+      <div class="metric"><span>🏆 คะแนนทดลอง</span><strong id="lobby-score">0</strong></div>
+      <div class="metric"><span>🎮 ห้องแข่งขัน</span><strong>3 คน</strong></div>
+    </div>
+    <div class="lobby-grid">
+      <div class="lobby-main">
+        <section class="panel lobby-section match-box">
+          <div class="lobby-heading"><div><div class="section-eyebrow">ARENA</div><h2>🎲 เริ่มเล่นกันเลย!</h2></div><span class="room-chip">ชนะ +10 • ไอเทม ×2 = +20</span></div>
+          <div class="match-art">🐱 <span>VS</span> 🐰 <span>VS</span> 🦊</div>
+          <button id="online-btn" class="primary-button match-online" type="button">🌐 เริ่มจับคู่หาห้องออนไลน์ <span>➜</span></button>
+          <button id="demo-btn" class="outline-button" type="button">🤖 เล่นทดลองกับบอท 2 คน</button>
+          <div id="mode-status" class="mode-status" role="status">ออนไลน์จริงยังไม่เปิดใช้งาน • เล่นทดลองได้ทันที</div>
+        </section>
+        <section class="panel lobby-section">
+          <div class="lobby-heading"><h2>💕 เลือกตัวละคร</h2><small>เลือกได้ 10 ตัว</small></div>
+          <div id="avatars" class="avatars"></div>
+        </section>
+        <section class="panel lobby-section shop-section" id="shop-section">
+          <div class="lobby-heading"><div><div class="section-eyebrow">ITEM SHOP</div><h2>🛍️ ร้านค้าไอเทม</h2></div><span class="shop-notice">ระบบทดลองและการซื้อจริงแยกกัน</span></div>
+          <div class="store-grid">
+            <div class="store-card"><span class="store-icon dice-icon">🏆<sup>×2</sup></span><strong>รางวัลชนะ ×2</strong><p>ชนะเกมรับ 20 คะแนนแทน 10 คะแนน • ไม่คูณรางวัล Lucky Box • ไม่เพิ่มช่องเดิน</p><div class="store-price">฿20 <small>ใช้งาน 24 ชั่วโมง</small></div><div class="store-status" id="dice-item-status">ยังไม่มีไอเทม</div><button class="store-demo-button" id="trial-dice" type="button">ทดลองใช้ฟรี 24 ชม.</button><button class="store-demo-button" data-buy="win2" type="button" disabled>🧾 ซื้อจริง ฿20</button></div>
+            <div class="store-card"><span class="store-icon">🛡️</span><strong>เกราะกันงู</strong><p>ป้องกันการถูกงูกินได้ 1 ครั้งต่อเกม ตลอดช่วงเวลาที่ไอเทมใช้งาน</p><div class="store-price">฿10 <small>ใช้งาน 24 ชั่วโมง</small></div><div class="store-status" id="shield-item-status">ยังไม่มีไอเทม</div><button class="store-demo-button" id="trial-shield" type="button">ทดลองใช้ฟรี 24 ชม.</button><button class="store-demo-button" data-buy="shield" type="button" disabled>🧾 ซื้อจริง ฿10</button></div>
+          </div>
+          <div class="shop-disclaimer"><span id="payment-availability">🔒 ยังไม่เปิดรับชำระเงินจริง</span> • ปุ่มทดลองใช้ฟรีไม่ให้สิทธิ์ในห้องออนไลน์</div>
+        </section>
+      </div>
+      <aside class="lobby-side">
+        <section class="panel lobby-section">
+          <div class="lobby-heading"><h2>🏆 ตารางอันดับคะแนน</h2><span class="room-chip" id="score-mode">คะแนนทดลอง</span></div>
+          <div class="leaderboard" id="leaderboard"></div><p class="disclaimer" id="score-disclaimer">คะแนนทดลองเก็บไว้เฉพาะบนอุปกรณ์นี้ ไม่รวมอันดับออนไลน์จริง</p>
+        </section>
+        <section class="panel lobby-section mini-rules"><h2>📜 กติกาแบบสั้น</h2><p>🎲 ผลัดกันทอยคนละ 20 วินาที</p><p>🐍 ตกปากงูลงไปที่หาง</p><p>🪜 ตกบันไดขึ้นช่องสูง</p><p>🎁 ลงช่องกล่องตรง ๆ เพื่อสุ่ม</p><p>🏁 ทอยถึงหรือเกิน 100 ชนะทันที</p><p>🏆 รางวัลชนะ ×2: 10 → 20 คะแนน ไม่คูณ Lucky Box</p></section>
+        <section class="panel lobby-section lucky-section">
+          <div class="lobby-heading"><div><div class="section-eyebrow">LUCKY BOX</div><h2>🎁 กล่องสุ่มคะแนน</h2></div><span class="room-chip">1 กล่อง/เกม</span></div>
+          <p class="lucky-explain">ทอยมาตกช่องกล่องตรง ๆ เพื่อรับคะแนนโบนัสทันที กล่องเปิดได้เพียงครั้งเดียวต่อเกม</p>
+          <div class="lucky-prizes" id="lucky-prizes-lobby"></div>
+          <p class="lucky-footnote" id="lucky-footnote">โอกาสรวม 100% • คะแนน Lucky Box ไม่ถูกคูณด้วยไอเทมรางวัล ×2</p>
+        </section>
+      </aside>
+    </div>
+  </section>
+
+  <section id="screen-game" class="screen" aria-label="หน้ากระดานแข่งขัน">
+    <div class="game-toolbar"><button id="back-lobby" class="toolbar-back" type="button">‹ กลับ Lobby</button><div><b>🏁 สนามแข่งขัน</b><span id="room-label" class="room-chip">🤖 ห้องทดลอง</span></div><button id="game-menu" type="button" class="toolbar-menu">☰ เมนู</button></div>
+    <div class="stage-card">
+      <div class="players" id="players" aria-label="ผู้เล่นสามคน"></div>
+      <div class="board-frame"><div class="board-topline"><span>🏰 เส้นชัย 100</span><span id="chest-label">🎁 1 กล่องต่อเกม</span></div><div id="board" class="board" role="img" aria-label="กระดานงูและบันได 100 ช่อง"></div><div class="board-caption"><span>🚩 เริ่มที่ 0</span><span>🐍 งูลง • 🪜 บันไดขึ้น</span></div></div>
+      <div class="turn-panel"><div class="turn-row"><div><div class="overline">ตาของผู้เล่น</div><div id="current-player" class="turn-person">กำลังเตรียมเกม</div></div><div class="clock"><span>⏰</span><span id="timer">20</span><small>วินาที</small></div></div>
+        <div class="time-track"><span id="time-fill"></span></div><div class="roll-zone"><div class="dice-face" id="dice" aria-label="ลูกเต๋า">⚄</div><div class="roll-controls"><div id="roll-value" class="roll-value">รอเริ่มเกม</div><button class="roll-button" id="roll-btn" disabled>🎲 ทอยลูกเต๋า</button></div></div><div class="power-status" id="power-status">🛍️ ไอเทม: ไม่มี</div><p class="hint" id="turn-hint">ถ้าไม่ทอยภายใน 20 วินาที จะข้ามตาทันที</p>
+      </div>
+    </div>
+    <section class="panel game-feed lucky-mini">
+      <div class="lobby-heading"><h2>🎁 รางวัล Lucky Box</h2><span class="room-chip">สุ่มครั้งเดียว</span></div>
+      <p class="lucky-explain">จะเปิดได้ต่อเมื่อผู้เล่นทอยลงช่อง 🎁 พอดี</p>
+      <div class="lucky-prizes" id="lucky-prizes-game"></div>
+    </section>
+    <section class="panel game-feed"><h2>📢 เหตุการณ์ในห้อง</h2><div id="events" class="event-list" aria-live="polite"></div><button id="replay-btn" class="outline-button" type="button">🔄 เริ่มเกมทดลองใหม่</button></section>
+  </section>
+  <footer class="app-footer">SNAKES & LADDERS • เกมออนไลน์ Staging • ยังไม่เปิดชำระเงินจริง</footer>
+ </main>
+ <div class="menu-backdrop" id="menu-backdrop" hidden></div>
+ <div class="side-menu" id="side-menu" role="dialog" aria-modal="true" aria-label="เมนูเกม" hidden><div class="menu-head"><b>🐍 Snakes & Ladders</b><button type="button" id="close-menu" aria-label="ปิดเมนู">✕</button></div><button type="button" data-nav="lobby">🏡 หน้า Lobby</button><button type="button" data-nav="shop">🛍️ ร้านค้าไอเทม</button><button type="button" data-nav="rank">🏆 ตารางอันดับ</button><button type="button" data-nav="rules">📜 วิธีเล่น</button><button type="button" data-nav="auth">🚪 ออกจากเกมทดลอง</button><div class="menu-meta">รุ่น v0.5 • จ่ายเงินจริงเฉพาะเมื่อเปิดระบบและยืนยันสลิปแล้ว</div></div>
+ <div class="modal-backdrop" id="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-x" type="button" id="modal-x" aria-label="ปิด">✕</button><span id="modal-illustration">🌿</span><h2 id="modal-title">ข้อความ</h2><p id="modal-text"></p><button type="button" id="modal-close" class="primary-button">เข้าใจแล้ว</button></div></div>
+ <div class="toast" id="toast" role="status" aria-live="polite"></div>
+ <script type="module" src="./game.js"></script>
+</body>
+</html>
