@@ -416,9 +416,30 @@ async function loadPaymentQr(orderId){
   if(!$('payment-panel').dataset.order||$('payment-panel').dataset.order!==orderId)return;
   const blob=await r.blob();
   if(blob.type!=='image/svg+xml')throw Error('QR รูปแบบไม่ถูกต้อง');
+  // Convert the self-hosted SVG into a white-background PNG for mobile banking apps.
+  const svgUrl=URL.createObjectURL(blob);
+  let png;
+  try{
+    const image=new Image();
+    await new Promise((resolve,reject)=>{
+      image.onload=resolve;
+      image.onerror=()=>reject(new Error('เปิดภาพ QR ไม่สำเร็จ'));
+      image.src=svgUrl;
+    });
+    const canvas=document.createElement('canvas');
+    canvas.width=640;canvas.height=640;
+    const ctx=canvas.getContext('2d');
+    if(!ctx)throw new Error('ไม่สามารถสร้างภาพ QR ได้');
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,640,640);
+    ctx.drawImage(image,0,0,640,640);
+    png=await new Promise((resolve,reject)=>canvas.toBlob(
+      result=>result?resolve(result):reject(new Error('บันทึก QR เป็น PNG ไม่สำเร็จ')),'image/png'
+    ));
+  }finally{URL.revokeObjectURL(svgUrl);}
   if($('payment-panel').dataset.order!==orderId)return;
   clearPaymentQr();
-  activePaymentQrUrl=URL.createObjectURL(blob);
+  activePaymentQrUrl=URL.createObjectURL(png);
   $('payment-qr').src=activePaymentQrUrl;
   $('payment-qr').hidden=false;
   $('payment-qr-save').href=activePaymentQrUrl;
