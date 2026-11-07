@@ -400,10 +400,36 @@ async function initializeOnlineServices(){
     ?'👑 สมัคร VIP ฿100 / 30 วัน'
     :'👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)';
 }
+let activePaymentQrUrl=null;
+function clearPaymentQr(){
+  if(activePaymentQrUrl){URL.revokeObjectURL(activePaymentQrUrl);activePaymentQrUrl=null;}
+  $('payment-qr').hidden=true;$('payment-qr').removeAttribute('src');
+  $('payment-qr-save').hidden=true;$('payment-qr-save').removeAttribute('href');
+  $('payment-qr-disabled').hidden=false;
+}
+async function loadPaymentQr(orderId){
+  const r=await authorizedFetch(`/api/orders/${encodeURIComponent(orderId)}/qr`,{cache:'no-store'});
+  if(!r.ok){
+    const msg=await r.json().catch(()=>({}));
+    throw Error(msg.error||'สร้าง QR พร้อมเพย์ไม่สำเร็จ');
+  }
+  if(!$('payment-panel').dataset.order||$('payment-panel').dataset.order!==orderId)return;
+  const blob=await r.blob();
+  if(blob.type!=='image/svg+xml')throw Error('QR รูปแบบไม่ถูกต้อง');
+  if($('payment-panel').dataset.order!==orderId)return;
+  clearPaymentQr();
+  activePaymentQrUrl=URL.createObjectURL(blob);
+  $('payment-qr').src=activePaymentQrUrl;
+  $('payment-qr').hidden=false;
+  $('payment-qr-save').href=activePaymentQrUrl;
+  $('payment-qr-save').hidden=false;
+  $('payment-qr-disabled').hidden=true;
+}
 async function buyProduct(sku){
   if(!publicConfig?.paymentsEnabled){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
   if(!googleUser){showModal('ต้องล็อกอินก่อนซื้อ','โปรดเข้าสู่ระบบด้วย Google แล้วกลับมาที่ร้านค้าอีกครั้ง','🔐');return;}
   const panel=$('payment-panel');panel.hidden=false;
+  clearPaymentQr();
   panel.dataset.order='';
   $('payment-reconcile').hidden=true;
   $('payment-progress').textContent='กำลังสร้างคำสั่งซื้อ…';
@@ -413,10 +439,12 @@ async function buyProduct(sku){
     const o=data.order;
     $('payment-order').textContent=o.id;
     $('payment-amount').textContent=String(o.amount)+' บาท';
-    $('payment-recipient').textContent=`${publicConfig.merchant?.name||'ยังไม่ระบุ'} • ${publicConfig.merchant?.account||'ยังไม่ระบุบัญชี'}`;
-    $('payment-progress').textContent='โอนตามยอดที่แจ้งภายใน 15 นาที แล้วส่งรูปสลิปเพื่อตรวจสอบ';
+    $('payment-recipient').textContent=publicConfig.merchant?.name||'ร้าน Lucky Game';
     panel.dataset.order=o.id;
     $('payment-reconcile').hidden=false;
+    $('payment-progress').textContent='กำลังสร้างภาพ QR พร้อมเพย์ตามยอดคำสั่งซื้อ…';
+    await loadPaymentQr(o.id);
+    $('payment-progress').textContent='ตรวจสอบชื่อผู้รับและยอดในแอปธนาคารก่อนโอนภายใน 15 นาที แล้วแนบรูปสลิปจริง';
   }catch(e){$('payment-progress').textContent='❌ '+e.message;}
   panel.scrollIntoView({behavior:'smooth',block:'center'});
 }
@@ -525,5 +553,5 @@ for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('c
 $('vip-buy').addEventListener('click',()=>buyProduct('vip'));
 $('payment-submit').addEventListener('click',submitSlip);
 $('payment-reconcile').addEventListener('click',reconcilePayment);
-$('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;});
+$('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;clearPaymentQr();});
 renderAvatarPicker();renderLuckyTables();updateShopUI();applySavedNickname(store.getItem('snlGuestNickname')||'');chooseServer('free');showScreen('auth');detectServer();
