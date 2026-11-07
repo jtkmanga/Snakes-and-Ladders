@@ -446,7 +446,24 @@ async function loadPaymentQr(orderId){
   $('payment-qr-save').hidden=false;
   $('payment-qr-disabled').hidden=true;
 }
+function showPaymentPreview(){
+  const panel=$('payment-panel');
+  clearPaymentQr();
+  panel.hidden=false;
+  panel.dataset.order='';
+  $('payment-order').textContent='ตัวอย่างเท่านั้น — ยังไม่มีคำสั่งซื้อ';
+  $('payment-amount').textContent='100 บาท (ตัวอย่าง)';
+  $('payment-recipient').textContent='Lucky Game';
+  $('payment-qr-disabled').textContent='🔒 QR จริงยังไม่เปิดให้สแกนหรือโอนเงิน';
+  $('payment-reconcile').hidden=true;
+  $('payment-slip').disabled=true;
+  $('payment-submit').disabled=true;
+  $('payment-progress').textContent='โหมดดูตัวอย่างเท่านั้น ไม่มีการสร้าง QR รับเงินหรือเรียก Slip2Go';
+  panel.scrollIntoView({behavior:'smooth',block:'center'});
+}
 async function buyProduct(sku){
+  $('payment-slip').disabled=false;
+  $('payment-submit').disabled=false;
   if(!publicConfig?.paymentsEnabled){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
   if(!googleUser){showModal('ต้องล็อกอินก่อนซื้อ','โปรดเข้าสู่ระบบด้วย Google แล้วกลับมาที่ร้านค้าอีกครั้ง','🔐');return;}
   const panel=$('payment-panel');panel.hidden=false;
@@ -572,7 +589,13 @@ for(const item of ['dice','shield'])$(item==='dice'?'trial-dice':'trial-shield')
 });
 for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('click',()=>buyProduct(btn.dataset.buy));
 $('vip-buy').addEventListener('click',()=>buyProduct('vip'));
+$('payment-preview').addEventListener('click',showPaymentPreview);
 $('payment-submit').addEventListener('click',submitSlip);
 $('payment-reconcile').addEventListener('click',reconcilePayment);
-$('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;clearPaymentQr();});
+$('payment-close').addEventListener('click',()=>{
+  $('payment-panel').hidden=true;
+  $('payment-slip').disabled=false;
+  $('payment-submit').disabled=false;
+  clearPaymentQr();
+});
 renderAvatarPicker();renderLuckyTables();updateShopUI();applySavedNickname(store.getItem('snlGuestNickname')||'');chooseServer('free');showScreen('auth');detectServer();
