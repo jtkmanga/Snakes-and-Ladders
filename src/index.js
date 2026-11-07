@@ -25,8 +25,10 @@ async function fulfillOrder(order,user,env){
       if(renewed.ok)result=await vip.activateAfterVerifiedPayment({userId:user.id,orderId:order.id,transactionId:receipt});
     }
     if(!result.ok)return json({error:'ตรวจสอบการจ่ายเงินผ่านแล้วแต่ยังไม่สามารถเปิดสิทธิ์ได้ โปรดตรวจสถานะหรือแจ้งผู้ดูแล อย่าโอนเงินซ้ำ',status:'verified_not_fulfilled',orderId:order.id},409);
-    await env.PAYMENTS.get(env.PAYMENTS.idFromName('payment-ledger-v1')).markFulfilled({id:order.id,uid:user.id});
-    return json({ok:true,expiresAt:result.expiresAt,order:publicOrder(await env.PAYMENTS.get(env.PAYMENTS.idFromName('payment-ledger-v1')).get(order.id,user.id))});
+    const payments=env.PAYMENTS.get(env.PAYMENTS.idFromName('payment-ledger-v1'));
+    const marked=await payments.markFulfilled({id:order.id,uid:user.id});
+    if(!marked?.ok)return json({error:'เปิดสิทธิ์แล้ว แต่ยังยืนยันสถานะคำสั่งซื้อไม่สำเร็จ กรุณาตรวจสถานะอีกครั้ง ห้ามโอนซ้ำ',status:'verified_not_fulfilled',orderId:order.id},503);
+    return json({ok:true,expiresAt:result.expiresAt,order:publicOrder(await payments.get(order.id,user.id))});
   }catch(e){console.error('fulfillment failed',String(e?.message||e).slice(0,80));return json({error:'ชำระเงินตรวจผ่านแล้ว แต่การเปิดสิทธิ์ยังไม่สำเร็จ โปรดติดต่อผู้ดูแลพร้อมเลขคำสั่งซื้อ',status:'verified_not_fulfilled'},503);}
 }
 
