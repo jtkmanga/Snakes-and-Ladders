@@ -400,6 +400,8 @@ async function buyProduct(sku){
   if(!publicConfig?.paymentsEnabled){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
   if(!googleUser){showModal('ต้องล็อกอินก่อนซื้อ','โปรดเข้าสู่ระบบด้วย Google แล้วกลับมาที่ร้านค้าอีกครั้ง','🔐');return;}
   const panel=$('payment-panel');panel.hidden=false;
+  panel.dataset.order='';
+  $('payment-reconcile').hidden=true;
   $('payment-progress').textContent='กำลังสร้างคำสั่งซื้อ…';
   try{
     const response=await authorizedFetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sku})});
@@ -410,6 +412,7 @@ async function buyProduct(sku){
     $('payment-recipient').textContent=`${publicConfig.merchant?.name||'ยังไม่ระบุ'} • ${publicConfig.merchant?.account||'ยังไม่ระบุบัญชี'}`;
     $('payment-progress').textContent='โอนตามยอดที่แจ้งภายใน 15 นาที แล้วส่งรูปสลิปเพื่อตรวจสอบ';
     panel.dataset.order=o.id;
+    $('payment-reconcile').hidden=false;
   }catch(e){$('payment-progress').textContent='❌ '+e.message;}
   panel.scrollIntoView({behavior:'smooth',block:'center'});
 }
@@ -421,12 +424,42 @@ async function submitSlip(){
   try{
     const form=new FormData();form.append('slip',file);
     const response=await authorizedFetch(`/api/orders/${encodeURIComponent(id)}/verify`,{method:'POST',body:form});
-    const data=await response.json();if(!response.ok)throw Error(data.error||'ตรวจสอบไม่สำเร็จ');
+    const data=await response.json();
+    if(!response.ok){
+      if(data?.status==='verified_not_fulfilled'){
+        $('payment-progress').textContent='⚠️ ตรวจสลิปผ่านแล้ว แต่ยังรอเปิดสิทธิ์ ห้ามโอนซ้ำ กดตรวจสถานะสิทธิ์ได้';
+        $('payment-reconcile').hidden=false;
+        return;
+      }
+      throw Error(data.error||'ตรวจสอบไม่สำเร็จ');
+    }
     $('payment-progress').textContent='✅ ตรวจสลิปสำเร็จและเปิดสิทธิ์แล้ว';
     const meResponse=await authorizedFetch('/api/me');if(meResponse.ok)serverMe=await meResponse.json();
     updateShopUI();
   }catch(e){$('payment-progress').textContent='⚠️ '+e.message+' • หากธนาคารหักเงินจริงแล้ว อย่าโอนซ้ำ ให้ติดต่อผู้ดูแลพร้อมหมายเลขคำสั่งซื้อ';}
   finally{$('payment-submit').disabled=false;}
+}
+async function reconcilePayment(){
+  const panel=$('payment-panel'),id=panel.dataset.order;
+  if(!id||!googleUser){$('payment-progress').textContent='กรุณาเข้าสู่ระบบและสร้างคำสั่งซื้อก่อน';return;}
+  $('payment-reconcile').disabled=true;
+  try{
+    $('payment-progress').textContent='กำลังตรวจสถานะสิทธิ์จากเซิร์ฟเวอร์ โดยไม่ตรวจสลิปซ้ำ…';
+    const response=await authorizedFetch(`/api/orders/${encodeURIComponent(id)}/reconcile`,{method:'POST'});
+    const data=await response.json();
+    if(!response.ok){
+      $('payment-progress').textContent=data?.status==='verified_not_fulfilled'
+        ?'⚠️ ชำระเงินตรวจผ่านแล้ว แต่สิทธิ์ยังไม่เปิด ติดต่อผู้ดูแลพร้อมหมายเลขคำสั่งซื้อ ห้ามโอนซ้ำ'
+        :'⚠️ '+(data.error||'ยังไม่สามารถยืนยันการเปิดสิทธิ์ได้')+' • หากโอนแล้วอย่าโอนซ้ำ';
+      return;
+    }
+    $('payment-progress').textContent='✅ ตรวจสถานะสำเร็จ สิทธิ์ถูกเปิดแล้ว';
+    const meResponse=await authorizedFetch('/api/me');
+    if(meResponse.ok)serverMe=await meResponse.json();
+    updateShopUI();
+  }catch(e){
+    $('payment-progress').textContent='⚠️ ตรวจสถานะไม่สำเร็จ '+(e.message||'')+' โปรดลองใหม่ อย่าโอนซ้ำ';
+  }finally{$('payment-reconcile').disabled=false;}
 }
 async function detectServer(){
   if(location.protocol==='file:')return;
@@ -485,5 +518,7 @@ for(const item of ['dice','shield'])$(item==='dice'?'trial-dice':'trial-shield')
  showModal('ไอเทมทดลองเปิดใช้งานแล้ว',`${item==='dice'?'รางวัลชนะ ×2':'เกราะกันงู'} ใช้ทดลองได้ 24 ชั่วโมงในโหมดบอทเท่านั้น\n${item==='dice'?'ได้รับคะแนนชนะเกมเป็น 20 คะแนน จากปกติ 10 คะแนน (ไม่คูณคะแนน Lucky Box และไม่เพิ่มจำนวนช่องเดิน)':'เริ่มเกมใหม่แต่ละรอบจะป้องกันงูได้ 1 ครั้ง'}\nไม่มีการชำระเงินจริง`,'🎁');
 });
 for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('click',()=>buyProduct(btn.dataset.buy));
-$('payment-submit').addEventListener('click',submitSlip);$('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;});
+$('payment-submit').addEventListener('click',submitSlip);
+$('payment-reconcile').addEventListener('click',reconcilePayment);
+$('payment-close').addEventListener('click',()=>{$('payment-panel').hidden=true;});
 renderAvatarPicker();renderLuckyTables();updateShopUI();applySavedNickname(store.getItem('snlGuestNickname')||'');chooseServer('free');showScreen('auth');detectServer();
