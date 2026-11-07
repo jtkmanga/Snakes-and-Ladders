@@ -27,6 +27,14 @@ export class PaymentLedger extends DurableObject {
     rate.count++;this.ctx.storage.kv.put(rateKey,rate);
     return {ok:true,order:this.get(id,uid)};
   }
+  // Cancel a newly created VIP order if all 100 seats are occupied. A cancelled
+  // order is never eligible for verification and will not block future checkout.
+  cancelPending({id,uid}){
+    const order=this.get(id,uid);
+    if(!order||order.status!=='pending')return {ok:false};
+    this.ctx.storage.sql.exec("UPDATE orders SET status='cancelled',lock_until=0 WHERE id=? AND uid=? AND status='pending'",id,uid);
+    return {ok:true};
+  }
   takeVerification({id,uid}){
     const order=this.get(id,uid),now=Date.now();
     if(!order)return {ok:false,reason:'missing_order'};
