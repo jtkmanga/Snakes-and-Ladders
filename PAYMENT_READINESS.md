@@ -16,15 +16,22 @@
 - The server checks Google Firebase ID tokens, owns catalog prices, validates provider response code `200200`, amount, receiver condition and transfer timing, and fingerprints bank transfers for duplicate prevention.
 
 ## Exact Cloudflare configuration (never commit secrets)
-Store in Cloudflare Worker **Secrets**: `SLIP2GO_SECRET`.
-Set Worker **Vars** securely after confirming the merchant account:
-- `SLIP2GO_API_BASE_URL` — verified API origin, e.g. `https://api.slip2go.com/` after confirming the merchant's dashboard docs.
-- `MERCHANT_ACCOUNT_TYPE` — Slip2Go's account type code for your real receiving account.
-- `MERCHANT_ACCOUNT_NUMBER` — real number as required by Slip2Go's `checkReceiver.accountNumber`.
-- Optional `MERCHANT_ACCOUNT_NAME_TH` — for additional recipient-name verification.
-- `MERCHANT_DISPLAY_NAME` — recipient display name.
-- `MERCHANT_PUBLIC_ACCOUNT` — recipient details that customers should see when paying.
-- `PAYMENTS_ENABLED` — **keep `false`** until an approved controlled canary completes.
+Store in Cloudflare Worker **Secrets** (never regular plaintext variables):
+- `SLIP2GO_SECRET` — API credential.
+- `MERCHANT_ACCOUNT_NUMBER` — Thai PromptPay mobile number (10 digits). No full phone is presented as text in the game.
+
+Set Worker **Vars**:
+- `SLIP2GO_API_BASE_URL` — verified HTTPS API origin from Slip2Go documentation/dashboard; confirm before activation.
+- `MERCHANT_ACCOUNT_TYPE=02001` — Slip2Go's code for PromptPay by mobile number.
+- `MERCHANT_DISPLAY_NAME=Lucky Game` — recipient label shown in the game.
+- Optional `MERCHANT_ACCOUNT_NAME_TH` — recipient Thai legal name verification.
+- `PAYMENTS_ENABLED` — **keep `false`** until an approved, controlled canary completes.
+
+The order QR is constructed on the Worker with an exact server-side amount (VIP ฿100, win×2 ฿20, snake shield ฿10). Only the authenticated owner of an unexpired pending order may fetch the no-store SVG; the mobile page converts it to a PNG for saving. The original phone number is not included in plaintext HTML/API JSON.
+
+**Privacy limit:** A standard PromptPay QR contains an encoded recipient identifier; anyone who can access or scan the QR may recover the mobile number. Merely hiding the number on screen is not anonymity. Use a merchant-issued QR identifier/payment gateway rather than a phone-linked QR if full phone secrecy is required.
+
+The payment page and QR route are gated by `PAYMENTS_ENABLED=false` until real merchant configuration and a controlled canary are verified. No money has been accepted or transfers initiated for this project.
 
 Never paste Slip2Go secret, bank private credentials, or Firebase service-account private key in chat or a repository.
 
