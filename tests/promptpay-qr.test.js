@@ -68,3 +68,12 @@ test('no buyer phone printed as text in checkout UI or client Javascript',()=>{
   assert.doesNotMatch(ui,/MERCHANT_ACCOUNT_NUMBER|MERCHANT_PUBLIC_ACCOUNT/);
   assert.doesNotMatch(html,/MERCHANT_ACCOUNT_NUMBER|MERCHANT_PUBLIC_ACCOUNT/);
 });
+
+test('mobile image is saved as an opaque white-background PNG and payment stays gated',()=>{
+  assert.match(html,/download="snakes-ladders-promptpay\.png"/);
+  assert.match(ui,/canvas\.toBlob\(/);
+  assert.match(ui,/ctx\.fillStyle='#ffffff'/);
+  assert.match(ui,/ctx\.drawImage\(image,0,0,640,640\)/);
+  assert.match(ui,/if\(!publicConfig\?\.paymentsEnabled\)/);
+  assert.match(main,/if\(!paymentConfigured\(env\)\)return json\(\{error:'ยังไม่เปิดรับชำระเงินจริง'\},503\)/);
+});
