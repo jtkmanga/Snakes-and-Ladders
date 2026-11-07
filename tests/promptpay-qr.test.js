@@ -77,3 +77,14 @@ test('mobile image is saved as an opaque white-background PNG and payment stays 
   assert.match(ui,/if\(!publicConfig\?\.paymentsEnabled\)/);
   assert.match(main,/if\(!paymentConfigured\(env\)\)return json\(\{error:'ยังไม่เปิดรับชำระเงินจริง'\},503\)/);
 });
+
+test('staging payment preview cannot submit a slip or create a charge',()=>{
+  assert.match(html,/id="payment-preview"/);
+  assert.match(ui,/function showPaymentPreview\(\)/);
+  const preview=ui.slice(ui.indexOf('function showPaymentPreview(){'),ui.indexOf('async function buyProduct(sku)'));
+  assert.match(preview,/panel\.dataset\.order=''/);
+  assert.match(preview,/\$\('payment-slip'\)\.disabled=true/);
+  assert.match(preview,/\$\('payment-submit'\)\.disabled=true/);
+  assert.doesNotMatch(preview,/authorizedFetch|createPromptPayPayload/);
+  assert.match(ui,/\$\('payment-preview'\)\.addEventListener\('click',showPaymentPreview\)/);
+});
