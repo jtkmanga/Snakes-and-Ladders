@@ -14,10 +14,17 @@ async function fulfillOrder(order,user,env){
   if(order.status==='fulfilled')return json({ok:true,order:publicOrder(order)});
   try{
     const receipt=order.tx_hash;
-    const result=order.sku==='vip'
+    let result=order.sku==='vip'
       ? await env.VIP.get(env.VIP.idFromName('vip-memberships-v1')).activateAfterVerifiedPayment({userId:user.id,orderId:order.id,transactionId:receipt})
       : await env.ITEMS.get(env.ITEMS.idFromName('inventory-v1')).grant({uid:user.id,sku:order.sku,transactionId:receipt});
-    if(!result.ok)return json({error:result.reason||'รอเจ้าหน้าที่ตรวจสอบสิทธิ์',status:'verified_not_fulfilled'},409);
+    // A verified bank transfer might settle just as its 15-minute VIP seat hold expires.
+    // Recover the exact verified order only if a fresh seat is available.
+    if(!result.ok&&order.sku==='vip'&&result.reason==='missing_or_expired_hold'){
+      const vip=env.VIP.get(env.VIP.idFromName('vip-memberships-v1'));
+      const renewed=await vip.reserveForCheckout({userId:user.id,orderId:order.id});
+      if(renewed.ok)result=await vip.activateAfterVerifiedPayment({userId:user.id,orderId:order.id,transactionId:receipt});
+    }
+    if(!result.ok)return json({error:'ตรวจสอบการจ่ายเงินผ่านแล้วแต่ยังไม่สามารถเปิดสิทธิ์ได้ โปรดตรวจสถานะหรือแจ้งผู้ดูแล อย่าโอนเงินซ้ำ',status:'verified_not_fulfilled',orderId:order.id},409);
     await env.PAYMENTS.get(env.PAYMENTS.idFromName('payment-ledger-v1')).markFulfilled({id:order.id,uid:user.id});
     return json({ok:true,expiresAt:result.expiresAt,order:publicOrder(await env.PAYMENTS.get(env.PAYMENTS.idFromName('payment-ledger-v1')).get(order.id,user.id))});
   }catch(e){console.error('fulfillment failed',String(e?.message||e).slice(0,80));return json({error:'ชำระเงินตรวจผ่านแล้ว แต่การเปิดสิทธิ์ยังไม่สำเร็จ โปรดติดต่อผู้ดูแลพร้อมเลขคำสั่งซื้อ',status:'verified_not_fulfilled'},503);}
@@ -73,7 +80,10 @@ export default {
       const order=created.order;
       if(order.sku==='vip'){
         const reserved=await vip().reserveForCheckout({userId:user.id,orderId:order.id});
-        if(!reserved.ok)return json({error:reserved.reason},409);
+        if(!reserved.ok){
+          await ledger().cancelPending({id:order.id,uid:user.id});
+          return json({error:reserved.reason},409);
+        }
       }
       return json({order:publicOrder(order)},201);
     }
