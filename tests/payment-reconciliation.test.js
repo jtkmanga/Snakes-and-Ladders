@@ -100,3 +100,22 @@ test('never create a charge when VIP capacity check fails and pending order is c
  assert.equal(cancel.call(obj,{id:'order-1',uid:'a'}).ok,false);
  assert.equal(sql.length,1);
 });
+
+test('ledger finalization failure never reports payment completed, and retry remains idempotent',async()=>{
+ const {vip,env,add,ledger,orders}=setup();
+ const order=add('a','order-retry-finalization');
+ await vip.reserveForCheckout({userId:'a',orderId:order.id});
+ const realMark=ledger.markFulfilled;
+ ledger.markFulfilled=()=>({ok:false});
+ const first=await fulfillOrder(order,{id:'a'},env);
+ assert.equal(first.status,503);
+ assert.equal((await first.json()).status,'verified_not_fulfilled');
+ assert.equal(order.status,'verified');
+ assert.equal((await vip.getStatus()).active,1);
+ const expiry=vip.state().members.a.expiresAt;
+ ledger.markFulfilled=realMark;
+ const second=await fulfillOrder(order,{id:'a'},env);
+ assert.equal(second.status,200);
+ assert.equal(order.status,'fulfilled');
+ assert.equal(vip.state().members.a.expiresAt,expiry);
+});
