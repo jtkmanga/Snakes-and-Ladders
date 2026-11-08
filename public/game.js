@@ -503,6 +503,7 @@ async function restoreLastPayment(){
   }
   const panel=$('payment-panel');
   clearPaymentQr();
+  $('payment-start-preview').hidden=true;
   panel.dataset.order='';
   $('payment-qr-disabled').textContent='🔄 กำลังตรวจสอบคำสั่งซื้อเดิม…';
   $('payment-reconcile').hidden=true;
@@ -522,6 +523,7 @@ async function restoreLastPayment(){
     if(!order){
       $('payment-order').textContent='ไม่พบคำสั่งซื้อเดิม';
       $('payment-qr-disabled').textContent='🔒 ไม่มี QR เพราะยังไม่มีคำสั่งซื้อจริง';
+      $('payment-start-preview').hidden=false;
       $('payment-progress').textContent='ยังไม่มีรายการซื้อในช่วง 7 วันที่ผ่านมา • ใช้ปุ่มดูตัวอย่างชำระเงินเพื่อดูหน้าจอ โดยไม่ต้องโอนเงินจริง';
       return;
     }
@@ -555,6 +557,7 @@ async function restoreLastPayment(){
 }
 function showPaymentPreview(){
   const panel=$('payment-panel');
+  $('payment-start-preview').hidden=true;
   clearPaymentQr();
   panel.hidden=false;
   panel.dataset.order='';
@@ -569,6 +572,7 @@ function showPaymentPreview(){
   panel.scrollIntoView({behavior:'smooth',block:'center'});
 }
 async function buyProduct(sku){
+  $('payment-start-preview').hidden=true;
   $('payment-slip').disabled=false;
   $('payment-submit').disabled=false;
   if(!publicConfig?.paymentsEnabled&&!serverMe?.canPurchase){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
@@ -699,6 +703,7 @@ $('vip-buy').addEventListener('click',()=>buyProduct('vip'));
 $('payment-preview').addEventListener('click',showPaymentPreview);
 $('payment-restore').addEventListener('click',restoreLastPayment);
 $('payment-preflight').addEventListener('click',testPaymentConnection);
+$('payment-start-preview').addEventListener('click',showPaymentPreview);
 $('payment-submit').addEventListener('click',submitSlip);
 $('payment-reconcile').addEventListener('click',reconcilePayment);
 $('payment-close').addEventListener('click',()=>{
