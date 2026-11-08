@@ -75,7 +75,7 @@ test('lookup rejects path traversal, excessive references and malformed records'
   assert.equal(validSlipReference('AB12cd-1234_5678'),true);
   await assert.rejects(slip2goAccountInfo(env,async()=>reply({},'401001')),error=>
     error instanceof Slip2GoAdminError&&error.publicDiagnostic().providerCode==='401001');
-  await assert.rejects(slip2goAccountInfo({...env,SLIP2GO_API_BASE_URL:'https://evil.example/'},async()=>{throw Error('Should not call provider')}),/invalid Slip2Go API origin/);
+  await assert.rejects(slip2goAccountInfo({...env,SLIP2GO_API_BASE_URL:'https://evil.example/'},async()=>{throw Error('Should not call provider')}),e=>e instanceof Slip2GoAdminError&&e.reason==='configuration');
 });
 test('Admin UI is separate, read-only, secured, and never exposes API credentials',()=>{
   assert.match(page,/id="refresh-account"/);
