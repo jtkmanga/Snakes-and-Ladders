@@ -1,3 +1,21 @@
+## 8 November 2026 — Staging Worker V68, pre-live checkout build complete
+
+**Owner instruction remains in force:** finish non-monetary development; stop BEFORE the first real bank transfer. Do not switch on real payments or direct any player to send money.
+
+- **Cloudflare:** Worker V68 deployed at 100%; 18 bindings preserved; \`PAYMENTS_ENABLED=false\`, \`PAYMENT_ROLLOUT=disabled\`, \`V2_STAGE5_LOCKED=true\`. The public client config now exposes \`paymentV2Stage5Locked:true\` and gates real purchase buttons on that server-provided value.
+- **Mobile recording root cause:** unconditional \`#payment-panel{display:none!important}\` override. Fixed from V63 onward. V68 also removes the old blanket rule that hid real purchase buttons and product prices; their DOM \`disabled\` state is retained until permission flags and the Stage 5 hard lock allow payment.
+- **Game demo actions:** Google-authenticated V2 demo checkout, history, rejection/approval simulations, and order-state reload. The preview uses a distinct SQL Durable Object; no payable QR, no real Slip2Go call or VIP/item grant.
+- **Prepared real routes:** verified Firebase owner-only \`/api/payments/v2/live/orders\`, order lookup/recent, QR, raw PNG/JPEG upload, and reconciliation. They invoke \`PaymentV2LiveCoordinator\`, dedicated global V2 atomic SQL ledger, encrypted Cloudflare merchant/provider secrets, Slip2Go check code \`200200\` (not \`200000\`), unique transfer fingerprint, stable delivery key, and VIP/Inventory idempotent grant. **Every live route returns a lock/error before any payment action** until Stage 5 is explicitly approved; the code is not equivalent to a verified live bank transaction.
+- **V67/V68 mobile safety:** a verified or fulfilling order is eligible for reconciliation and **does not display a fresh payable QR**, reducing accidental duplicate transfers. Real-money UI is prepared to use V2 endpoints once explicitly unlocked.
+- **CI evidence:** GitHub Actions Push and PR pass; portable SQLite buyer tests, atomic ledger tests, fake provider and fake downstream grant/replay tests, PNG signature checks, and deployed V68 JS+Worker parse and CSS regression tests all pass. Files: \`staging-game-v68.mjs\`, \`staging-index-v68.html\`, \`staging-style-v68.css\`, \`staging-main-v68.mjs\`, \`staging-ledger-v66.mjs\`.
+- **Branch status:** \`payment-v2-rebuild\` remains Draft PR #2, not merged into \`main\`. Staging Worker is the current live test target. Do not infer production rollout from Staging deploy.
+- **Still unproven without bank test:** real QR bank payee recognition, true payment arrival/owner attribution, real Slip2Go 200200 receipt contents, provider time tolerance, final live VIP/Inventory settlement, refund/expired-seat corner cases and production release signoff. Do not describe paid checkout as "100% verified" until the owner runs the authorized small transfer and bank/provider/game records agree.
+
+**Stage 5 remains paused until the owner has an account capable of making the transfer and specifically approves the canary.** No bank transaction is requested at this time.
+
+Game: https://snakes-and-ladders-staging.jtkmanga.workers.dev/?v=68
+
+---
 ## 8 November 2026 — V67 staged, real-payment test deliberately paused
 
 The owner supplied a mobile Chrome screen recording demonstrating that the VIP demo purchase and "my test orders" buttons appeared unresponsive. **Root cause was the old staging CSS rule** that included \`#payment-panel\` in an unconditional \`display:none!important\` group. Staging V63 fixed it; V64 introduced a separately unit-tested SQLite buyer preview ledger; V65 prepared the authenticated live V2 route families; V66 moved the real-checkout client to those V2 paths; V67 prevents reissuing payable QR when an order is already verified/fulfilling and forces a fresh mobile JS/CSS version.
