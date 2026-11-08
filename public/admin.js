@@ -3,13 +3,45 @@ const $=id=>document.getElementById(id);
 let authorized=false,busy=false;
 const text=(id,value)=>{$(id).textContent=value==null||value===''?'—':String(value)};
 const ready=()=>authorized&&Boolean(auth.currentUser());
+// The server supplies only allowlisted diagnostic codes, not a provider response body.
+function explainAdminFailure(data,status){
+  const d=data?.diagnostic;
+  if(!d||typeof d!=='object')return data?.error||('HTTP '+status);
+  const details={
+    '401001':'Secret Key ไม่ถูกต้องหรือไม่ตรงกับร้านนี้ ตรวจ Secret ใน Slip2Go และ Cloudflare',
+    '401002':'ไม่พบร้าน Slip2Go สำหรับคีย์นี้',
+    '401003':'บัญชี Slip2Go ถูกระงับ กรุณาติดต่อผู้ให้บริการ',
+    '401004':'แพ็กเกจ Slip2Go หมดอายุ',
+    '401005':'โทเคน Slip2Go ไม่เพียงพอ',
+    '401006':'เครดิต Slip2Go ไม่เพียงพอ',
+    '401007':'IP Whitelist ไม่อนุญาตให้ Cloudflare เรียก API ตรวจการตั้งค่าฝั่ง Slip2Go',
+    '429000':'Slip2Go จำกัดจำนวนคำขอ โปรดลองอีกครั้งภายหลัง',
+    '500500':'บริการ Slip2Go ขัดข้องชั่วคราว',
+    '500503':'Slip2Go อยู่ระหว่างปรับปรุงระบบ',
+    '400003':'ไม่พบ referenceId ของสลิปเดิม'
+  };
+  const reasons={
+    configuration:'ค่าการเชื่อมต่อ API หรือ Secret บน Cloudflare ไม่ครบ',
+    timeout:'Slip2Go ตอบกลับช้าเกินเวลาที่กำหนด',
+    network:'เชื่อมต่อ Slip2Go ไม่สำเร็จ ตรวจเครือข่ายหรือการจำกัดคำขอ',
+    non_json:'Slip2Go ส่งคำตอบที่ไม่ใช่ JSON ตรวจ URL, IP Whitelist หรือการบล็อกคำขอ',
+    invalid_response:'ข้อมูลตอบกลับไม่ตรงรูปแบบคู่มือ API',
+    internal:'มีข้อผิดพลาดภายใน Worker',
+    provider_http:'Slip2Go ปฏิเสธคำขอ',
+    provider_code:'Slip2Go ส่งรหัสข้อผิดพลาด'
+  };
+  const summary=details[d.providerCode]||reasons[d.reason]||'Slip2Go ส่งผลลัพธ์ผิดพลาด';
+  const metadata=[d.providerCode?'รหัส '+d.providerCode:null,
+    Number.isInteger(d.httpStatus)?'HTTP '+d.httpStatus:null].filter(Boolean).join(' / ');
+  return '⚠️ '+summary+(metadata?' ('+metadata+')':'');
+}
 async function api(path){
   if(!ready())throw Error('กรุณาเข้าสู่ระบบ Admin ก่อน');
   const token=await auth.idToken();
   const r=await fetch(path,{method:'GET',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',
     headers:{Authorization:'Bearer '+token,Accept:'application/json'}});
   const data=await r.json().catch(()=>({}));
-  if(!r.ok)throw Error(data.error||('HTTP '+r.status));
+  if(!r.ok)throw Error(explainAdminFailure(data,r.status));
   return data;
 }
 async function checkAdmin(){
