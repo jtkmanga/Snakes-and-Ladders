@@ -63,6 +63,10 @@ export class Scores extends DurableObject {
     const b=await this.ensureBoard(server);
     return {ok:b.touch({id,email,name,avatar,online:true})};
   }
+  async onlineCount(server){
+    const board=await this.ensureBoard(server);
+    return {server,online:board.onlineCount(),asOf:Date.now(),windowSeconds:90};
+  }
   async adminPlayers({server,onlineOnly=false,limit=150,offset=0}){
     const b=await this.ensureBoard(server);
     return {ok:true,server,...b.players({onlineOnly,limit,offset}),nextReset:this.ctx.storage.kv.get('admin:nextReset'),serverTime:Date.now()};
