@@ -55,12 +55,31 @@ async function refreshPlayers({append=false}={}){
 }
 async function refreshOverview(){
  if(!permitted)return;
- const responses=await Promise.all(['free','vip'].map(s=>api('/api/admin/board/players?server='+s+'&limit=1')));
- for(const response of responses){
-  const key=response.server;
-  $(key+'-player-count').textContent=Number(response.total).toLocaleString('th-TH');
-  $(key+'-online-tag').textContent=Number(response.online)+' ออนไลน์';
-  $(key+'-next').textContent=fmtTime(response.nextReset);
+ try{
+  // Both the game UI and this dashboard read the same public aggregate endpoint.
+  // Roster totals and next reset still require the verified owner session.
+  const [freeRoster,vipRoster,counts]=await Promise.all([
+    api('/api/admin/board/players?server=free&limit=1'),
+    api('/api/admin/board/players?server=vip&limit=1'),
+    fetch('/api/online/counts',{cache:'no-store'}).then(async response=>{
+      if(!response.ok)throw Error('online_count_unavailable');
+      return response.json();
+    })
+  ]);
+  if(!Number.isSafeInteger(counts.free)||counts.free<0||
+     !Number.isSafeInteger(counts.vip)||counts.vip<0||
+     !Number.isFinite(counts.asOf))throw Error('online_counts_invalid');
+  for(const roster of [freeRoster,vipRoster]){
+    const key=roster.server;
+    $(key+'-player-count').textContent=Number(roster.total).toLocaleString('th-TH');
+    $(key+'-online-tag').textContent=Number(counts[key]).toLocaleString('th-TH')+' ออนไลน์';
+    $(key+'-next').textContent=fmtTime(roster.nextReset);
+  }
+  $('online-overview-updated').textContent='🟢 ออนไลน์ตามสัญญาณผู้เล่น 90 วินาทีล่าสุด • Free '+counts.free.toLocaleString('th-TH')+' คน · VIP '+counts.vip.toLocaleString('th-TH')+' คน • เวลา '+fmtTime(counts.asOf);
+ }catch(error){
+  for(const key of ['free','vip'])$(key+'-online-tag').textContent='— ออนไลน์';
+  $('online-overview-updated').textContent='⚠️ ยังอัปเดตจำนวนออนไลน์ไม่ได้';
+  throw error;
  }
 }
 function historyElement(item){
