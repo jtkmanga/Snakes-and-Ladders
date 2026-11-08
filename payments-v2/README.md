@@ -1,3 +1,22 @@
+## 8 November 2026 — V74 owner-only real payment popup for 3 products
+
+Owner request: tapping VIP or item Buy must immediately open a modal with a real server order and QR, not a simulated payment. This request is now implemented in Cloudflare Staging Worker V74. The payment dialog opens instantly; QR appears only after the authenticated order creation and real provider merchant-readiness checks succeed.
+
+Pricing: VIP membership 30 days 100 THB, win2 reward multiplier 20 THB for 24 hours, shield 10 THB for 24 hours. The old first-order-only/shield-only canary restriction was removed for the verified owner account. Google-authenticated owner-only checkout still applies to every live payment endpoint. Environment still has PAYMENTS_ENABLED=true, PAYMENT_ROLLOUT=canary, PAYMENT_V2_OWNER_CANARY=explicitly_approved. No public rollout.
+
+V74 payment UI: fixed mobile scrollable modal, explicit QR loading status and don't-transfer-until-QR message, correct amount and merchant, QR PNG save, raw PNG/JPEG bank slip upload and recovered order status. After successful or verified-but-pending delivery the slip submit button remains disabled, reducing accidental duplicate submission. Real QR is built on the Worker based on the server-stored order and E-Wallet receiver. All payment simulation buttons remain removed from the game and admin.
+
+Security: source of truth is a dedicated shared SQLite Durable Object; per-SKU pending order reuse, request rate limiting, transfer fingerprint replay rejection, amount and receiver validation, successful Slip2Go provider code 200200 and exactly-once VIP or inventory delivery. New production paths use merchant preflight before order creation and QR display. VIP capacity is reserved before issuing payable QR. Offline fake-provider integration tests pass.
+
+Evidence: deployed V74; payment code and V74 snapshot in payment-v2-rebuild branch; GitHub Actions green; source snapshots staging-game-v74.mjs, staging-index-v74.html, staging-main-v73.mjs, staging-style-v73.css, staging-admin-v73.html. This remains a Staging-only change; PR #2 is a Draft and not merged into main.
+
+**Real bank-transfer settlement has not been tested.** The owner must inspect payee in their mobile banking app, verify the first transfer arrived and Slip2Go detects the actual slip, then confirm the intended VIP/item grant. Do not claim 100% verified real settlement or switch to public rollout until these checks pass.
+
+Game: https://snakes-and-ladders-staging.jtkmanga.workers.dev/?v=74
+Admin: https://snakes-and-ladders-staging.jtkmanga.workers.dev/admin
+
+---
+
 ## 8 November 2026 — Live-money owner-only canary, Worker V72
 
 The owner explicitly asked for a REAL payment flow and for ALL payment simulation buttons to be removed. This supersedes the old Stage 5 hold instruction FOR OWNER ONLY. Public payment rollout remains prohibited pending first transfer confirmation.
