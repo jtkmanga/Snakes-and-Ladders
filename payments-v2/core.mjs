@@ -12,18 +12,19 @@ const CLOCK_SKEW_MS=120000;
 const VALID_SKU=new Set(Object.keys(PRODUCTS_V2));
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function createPendingOrder({uid,sku,uuid,now=Date.now()}){
+export function createPendingOrder({uid,sku,uuid,now=Date.now(),amountBaht=PRODUCTS_V2[sku]?.amountBaht}){
   if(typeof uid!=='string'||uid.length<4||uid.length>200)throw Error('invalid_user');
   if(!VALID_SKU.has(sku))throw Error('invalid_product');
+  if(!Number.isSafeInteger(amountBaht)||amountBaht<1||amountBaht>5000)throw Error('invalid_price');
   if(typeof uuid!=='string'||!UUID.test(uuid))throw Error('invalid_order_id');
   if(!Number.isSafeInteger(now)||now<=0)throw Error('invalid_time');
-  return Object.freeze({id:'payv2-'+uuid,uid,sku,amountBaht:PRODUCTS_V2[sku].amountBaht,
+  return Object.freeze({id:'payv2-'+uuid,uid,sku,amountBaht,
     createdAt:now,expiresAt:now+ORDER_TTL_MS,status:'pending',version:2});
 }
 
 export function makeProviderChecks(order,receiver){
   if(!order||order.version!==2||!VALID_SKU.has(order.sku)
-      ||PRODUCTS_V2[order.sku].amountBaht!==order.amountBaht)throw Error('invalid_order');
+      ||!Number.isSafeInteger(order.amountBaht)||order.amountBaht<1||order.amountBaht>5000)throw Error('invalid_order');
   const receiverPatterns={
     '02001':/^0[689]\d{8}$/, // PromptPay mobile
     '02003':/^\d{13}$/,       // PromptPay national ID
