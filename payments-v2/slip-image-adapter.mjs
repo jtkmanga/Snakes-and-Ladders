@@ -3,6 +3,7 @@
 // fingerprinted event. An independent, atomic durable ledger is still mandatory
 // before a purchase may be fulfilled or any payment feature may be enabled.
 import {makeProviderChecks,validateProviderSlip,transferFingerprint} from './core.mjs';
+import {providerStageReady} from './provider-stage.mjs';
 
 export const SLIP_IMAGE_ENDPOINT='https://connect.slip2go.com/api/verify-slip/qr-image/info';
 const MAX_IMAGE_BYTES=4*1024*1024;
@@ -18,10 +19,10 @@ export function validateSlipImage(bytes){
   throw Error('unsupported_image');
 }
 
-export function prepareSlipVerification({env,order,receiver,bytes}){
+export function prepareSlipVerification({env,order,receiver,bytes,mode='synthetic'}){
   if(order?.version!==2||!['pending','verifying'].includes(order.status))throw Error('not_pending_order');
-  if(env?.PAYMENTS_ENABLED!=='false'||env?.PAYMENT_ROLLOUT!=='disabled')
-    throw Error('safe_mode_required');
+  if(!providerStageReady(env,mode))
+    throw Error('provider_stage_not_authorized');
   // A staging-only adapter. This must not authorize checkout or grant items.
   // Never print, log, or return the request object to the browser.
   const secret=env?.SLIP2GO_V2_SECRET;
@@ -39,8 +40,8 @@ export function prepareSlipVerification({env,order,receiver,bytes}){
     redirect:'manual',body:form}};
 }
 
-export async function verifySlipImageServer({env,order,receiver,bytes,fetchFn=fetch,now=Date.now()}){
-  const {url,options}=prepareSlipVerification({env,order,receiver,bytes});
+export async function verifySlipImageServer({env,order,receiver,bytes,mode='synthetic',fetchFn=fetch,now=Date.now()}){
+  const {url,options}=prepareSlipVerification({env,order,receiver,bytes,mode});
   let response;
   try{response=await fetchFn(url,{...options,signal:AbortSignal.timeout(12000)});}
   catch{throw Error('provider_network_error');}
