@@ -55,7 +55,8 @@ async function readProvider(env,path,providerFetch){
   try{
     response=await providerFetch(url,{
       method:'GET',headers:{Authorization:env.SLIP2GO_SECRET,Accept:'application/json'},
-      redirect:'error',signal:AbortSignal.timeout(12000)
+      // Cloudflare Workers does not support redirect:'error'; manual prevents following to new host.
+      redirect:'manual',signal:AbortSignal.timeout(12000)
     });
   }catch(e){
     const timeout=e?.name==='TimeoutError'||e?.name==='AbortError';
