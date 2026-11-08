@@ -3,6 +3,7 @@
 // a confirmed E-Wallet receiver, separate owner-approved canary gates, and the
 // disabled-payment stage. No browser can provide provider results or a receipt hash.
 import {verifySlipImageServer} from './slip-image-adapter.mjs';
+import {providerStageReady} from './provider-stage.mjs';
 
 const orderForProvider=row=>({
   id:row.id,version:2,status:row.status,sku:row.sku,
@@ -10,12 +11,12 @@ const orderForProvider=row=>({
 });
 
 export async function verifyOrderV2({
-  ledger,userId,orderId,bytes,env,fetchFn,now=Date.now(),uuid=()=>crypto.randomUUID()
+  ledger,userId,orderId,bytes,env,mode='synthetic',fetchFn,now=Date.now(),uuid=()=>crypto.randomUUID()
 }){
   if(!ledger||typeof userId!=='string'||!userId||typeof orderId!=='string')
     return {ok:false,reason:'invalid_request'};
-  if(env?.PAYMENTS_ENABLED!=='false'||env?.PAYMENT_ROLLOUT!=='disabled')
-    return {ok:false,reason:'safe_mode_required'};
+  if(!providerStageReady(env,mode))
+    return {ok:false,reason:'provider_stage_not_authorized'};
   const receiver={accountType:env.MERCHANT_ACCOUNT_TYPE,accountNumber:env.MERCHANT_ACCOUNT_NUMBER};
   if(receiver.accountType!=='02004'||typeof receiver.accountNumber!=='string'||!/^\d{15}$/.test(receiver.accountNumber))
     return {ok:false,reason:'receiver_not_ready'};
@@ -26,7 +27,7 @@ export async function verifyOrderV2({
   let event;
   try{
     event=await verifySlipImageServer({
-      env,order:orderForProvider(lock.order),receiver,bytes,
+      env,order:orderForProvider(lock.order),receiver,bytes,mode,
       ...(fetchFn?{fetchFn}:{}),now
     });
   }catch{
