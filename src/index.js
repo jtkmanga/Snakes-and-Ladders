@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { getAuthorizedUser, requireSameOrigin } from './security.js';
-import { PRODUCTS, paymentConfigured, verifySlip, transferFingerprint } from './payments.js';
+import { PRODUCTS, paymentConfigured, paymentReadiness, verifySlip, transferFingerprint } from './payments.js';
 import { createPromptPayPayload } from './promptpay.js';
 import qrcode from './vendor/qrcode.mjs';
 export { PaymentLedger, Inventory } from './ledger.js';
@@ -37,7 +37,12 @@ async function fulfillOrder(order,user,env){
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
-    if(url.pathname==='/api/health')return json({ok:true,mode:'staging',game:'snakes-and-ladders',authConfigured:Boolean(env.FIREBASE_PROJECT_ID&&env.FIREBASE_API_KEY),paymentsEnabled:paymentConfigured(env)});
+    if(url.pathname==='/api/health')return json({
+      ok:true,mode:'staging',game:'snakes-and-ladders',
+      authConfigured:Boolean(env.FIREBASE_PROJECT_ID&&env.FIREBASE_API_KEY),
+      paymentsEnabled:paymentConfigured(env),
+      paymentReadiness:paymentReadiness(env)
+    });
     if(url.pathname==='/api/config')return json({
       firebase:env.FIREBASE_PROJECT_ID&&env.FIREBASE_API_KEY&&env.FIREBASE_AUTH_DOMAIN&&env.FIREBASE_APP_ID?{
         apiKey:env.FIREBASE_API_KEY,authDomain:env.FIREBASE_AUTH_DOMAIN,projectId:env.FIREBASE_PROJECT_ID,appId:env.FIREBASE_APP_ID
