@@ -1,45 +1,61 @@
-# Snakes & Ladders — Payment V2 rebuild (NOT LIVE)
+# Snakes & Ladders — Payment V2 (STAGING / NOT LIVE)
 
-Status: UNDER DEVELOPMENT — NO REAL MONEY, NO PUBLIC CHECKOUT.
+**Updated 8 November 2026.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
 
-The original payment routes were disabled on Cloudflare staging Worker v37 on 2026-11-08.
-The historical Durable Object order ledger and existing player entitlements are intentionally preserved.
+## What is verified in staging
 
-## What is being rebuilt
+- Google/Firebase sign-in and owner-only admin page work after V54 syntax fix.
+- Slip2Go account info for **Lucky Game / BASIC-1** succeeded with `Authorization: Bearer <secret>` (HTTP 200, code 200001). The raw-key scheme yielded 401001 with the same key. **Never place the secret in GitHub or the browser.**
+- Merchant receiver type is `02004` for PromptPay E-Wallet. The owner privately compared all 15 digits in the Slip2Go dashboard against the Cloudflare `MERCHANT_ACCOUNT_NUMBER` secret; they matched.
+- Thai QR E-Wallet data structure and CRC for 10 and 100 THB passed *in-memory* checks; no payable QR was issued.
+- Admin-only sandbox test orders for shield (10 THB), win2 (20 THB), and VIP 30 days (100 THB) were written and retrieved using a **separate** Durable Object instance `payment-v2-sandbox-only`.
+- Six mock validation cases and a *synthetic* replay key survived storage and were checked on the admin page. These results are NOT evidence of a bank transaction or live provider slip check.
+- The last verified live Worker remains V56. It does **not** contain the new real-slip adapter, atomic paid ledger, or delivery coordinator.
 
-1. **Buyer:** Verified Firebase Google ID token; never trust UID from request body.
-2. **Order:** New unguessable order ID, fixed SKU/amount only on server, 15-minute checkout window.
-3. **PromptPay QR:** Create a QR for each order with exact amount and a merchant-owned payee. The uploaded Thai QR was a static QR without amount; ownership must be independently confirmed.
-4. **Receipt:** PNG/JPG uploaded only against the authenticated buyer's order.
-5. **Provider:** Slip2Go checks duplicate transfer, exact recipient and amount. Require response code 200200, not merely 200000; repeat amount and time checks on server.
-6. **Atomic ledger:** Store a hash of transfer reference under a unique index in a Durable Object; duplicate transfer cannot pay two orders.
-7. **Entitlements:** Grant VIP or items only after verification, once per transaction. Enforce VIP maximum 100 members using server-side coordination.
-8. **Recovery:** Verified-but-not-fulfilled orders stay retriable; prevent accidental second payment.
-9. **Admin:** All diagnostics restricted to allowlisted Google identity, never expose secrets or full bank data.
-10. **Release gate:** Fresh provider key only in Cloudflare secret SLIP2GO_V2_SECRET; PAYMENTS_V2_ENABLED defaults to false until full testing passes.
+## Current reviewed source files — NOT connected to live checkout
 
-## Isolation
+| File | Purpose |
+| --- | --- |
+| `core.mjs` | Server-priced order, E-Wallet exact recipient and amount conditions, transfer timestamps and hash |
+| `ewallet-qr.mjs` | Thai PromptPay E-Wallet Tag 29 / subtag 03 / CRC, no API or order writes |
+| `slip-image-adapter.mjs` | Multipart PNG/JPG, `Bearer`, Slip2Go checks and required code `200200`; no grants |
+| `atomic-ledger.mjs` | Atomic SQLite order + unique transfer claim + durable delivery outbox |
+| `server-coordinator.mjs` | Server-only verification, idempotent VIP/item delivery and retry after error |
+| `*.test.mjs` | Real SQLite and mock-provider tests, including conflicting transfers and crash/retry |
 
-Use a separate Durable Object instance named payment-ledger-v2, while keeping payment-ledger-v1 and prior VIP rights for audit/reconciliation. Before accepting new payments, verify duplicates across both systems and the Slip2Go provider. Do not delete past payment evidence.
+The adapter currently **fails closed if real payments are enabled**, because it is staging-only. Do not remove the safe-mode check merely to open checkout.
 
-Legacy payment APIs are quarantined. The live /api/payments/v2/status route reports setup status and acceptingPayments=false.
+Run tests using Node 22:
 
-## Tests
+```sh
+node --test payments-v2/*.test.mjs
+```
 
-With Node 22: node --test payments-v2/core.test.mjs
+## Safety invariants for future deployment
 
-The pure code in core.mjs and its tests cover server-authoritative product prices, invalid orders, required provider checks, mismatch/fake slips, timestamp limits, deterministic transfer fingerprint and merchant preflight.
+1. **Separate global Durable Object.** Every V2 order and bank transfer fingerprint must use one dedicated SQLite-backed Durable Object instance (proposed `payment-v2-global-v1`), not a per-user shard. A fingerprint has a PRIMARY KEY and order ID has UNIQUE constraint. The existing `payment-ledger-v1` must not be altered or deleted.
+2. **Verified buyer only.** On every order/slip route, derive UID from server-verified Firebase ID token, apply origin/CSRF protection and rate limits, look up the order by (id, UID), and never accept amount, receiver, provider success code or hash from the browser.
+3. **Amount/receiver validity.** Price comes from server SKU catalog; Slip2Go checks exact E-Wallet `02004` + 15-digit receiver, exact amount, and `checkDuplicate:true`; only the `200200` response with validated transfer details may reach `providerVerified`. A `200000` response is NOT a verified payment.
+4. **One atomic transaction.** Claim hash, update order to verified and insert durable outbox together using `transactionSync`. If any operation fails, rollback all. No network call inside that transaction. Test a same-hash race from two distinct users with the real Cloudflare Durable Object before canary.
+5. **Crash-safe delivery.** Use the **stable `deliveryKey`** as transactionId when calling existing idempotent `VipMemberships.activateAfterVerifiedPayment` or `Inventory.grant`. If remote delivery succeeds but marking order fulfilled fails, retry the *same* idempotency key. Never increment 30-day VIP twice.
+6. **VIP capacity.** VIP's 100-member seat limit is authoritative; reserve a seat before an active checkout starts, reconcile expired holds and plan a verified-but-not-fulfilled recovery/refund flow. Tests with fake VIP limits do not prove 100-seat concurrency.
+7. **Secure file flow.** Do not store raw slip images, E-Wallet full number, Secret Key, decoded bank personal information or provider response bodies in logs. Rate-limit uploads and restrict to <=4 MB validated PNG/JPG. Clear sensitive fields after use.
+8. **Cross-system replay.** The new V2 unique index protects only V2 orders. Because the older GPT-VOXEL-3D, Treasure-Hunt-2D, or historical V1 may share a payee, preserve provider-level duplicate verification and review earlier transactions; never claim global replay protection from one ledger alone.
+9. **Public release gate.** Do not enable payable QR or change payment flags before owner-authorized low-value real transfer test, end-to-end bank settlement review, wrong receiver/amount/replay/concurrent request tests, verified-but-not-fulfilled recovery, security audit, and documented rollback.
 
-## Still required
+## Future integration (not yet live)
 
-- Confirm that the PromptPay payee encoded in the supplied QR belongs to the intended merchant.
-- Resolve fresh provider Authentication using GET /api/account/info with a new secret never placed in chat.
-- Implement and audit V2 order storage, authenticated routes, QR issuance, slip verification, fulfillment, idempotency and recovery.
-- Test concurrent replay, wrong amounts, transfer time limits, seat limit 100/100, retries and one permitted 10-THB real-money canary.
-- Only then consider enabling payments for others.
+- Owner-only admin *test* routes can be used to test atomic SQLite on a distinct `payment-v2-atomic-sandbox-v1` instance without real QR or entitlements.
+- Only after tests, implement authenticated buyer endpoints for pending V2 orders, QR display and slip upload; wire server coordinator to provider and dedicated global ledger; use existing VIP/Inventory idempotent methods.
+- Stage canary first with the owner's explicit approval for a real transfer, then review before public rollout.
+- Keep the V1 payment endpoints quarantined, and retain all old player privileges.
 
-Slip2Go reference: https://slip2go.com/guide/rest-api/image
-Account info: https://slip2go.com/guide/rest-api/account-info
-Response codes: https://slip2go.com/guide/response
+## References
 
-IMPORTANT: These files are V2 groundwork; they do not implement a live payment processor.
+Slip2Go image verification: https://slip2go.com/guide/rest-api/image
+
+Slip2Go response codes: https://slip2go.com/guide/response
+
+Cloudflare transactionSync: https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/
+
+This repository contains the **tested design and implementation modules**, not a completed or deployed public payment processor.
