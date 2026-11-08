@@ -53,7 +53,7 @@ Staging is deployed via Cloudflare API with embedded static router. Repository `
 - https://slip2go.com/guide/authentication
 
 ## Payment completion pass — adapting lessons from GPT-VOXEL-3D (8 Nov 2026)
-- Reused the previously tested Slip2Go server communication contract: `Authorization: Bearer <secret>` and multipart `file` plus `payload`. Cloudflare `SLIP2GO_SECRET` remains protected; no key is placed in the frontend or repository.
+- Reused the previously tested Slip2Go server communication contract: `Authorization: <raw Slip2Go Secret Key>` and multipart `file` plus `payload`. Cloudflare `SLIP2GO_SECRET` remains protected; no key is placed in the frontend or repository.
 - Keep **strict provider code `200200`** for a verified sale. Code `200000` only confirms a slip was found; it must NOT grant entitlement without passed receiver/amount checks. Server also checks exact amount, recent time, and transaction reference.
 - Check duplicate transactions in two layers: Slip2Go `checkDuplicate:true` and the Durable Object's atomic `transfers` table. This is important because the same merchant/shop may be used by the older game; local game-only deduplication would not catch cross-game reuse.
 - Fingerprint the bank/sender reference (not a screenshot or decoded QR) so changing the PNG cannot create a second purchase.
@@ -61,3 +61,11 @@ Staging is deployed via Cloudflare API with embedded static router. Repository `
 - The mobile payment UI already prepares QR for VIP ฿100, win multiplier ฿20 and shield ฿10, plus PNG save and slip upload.
 - The entire public payment system remains **OFF** with `PAYMENTS_ENABLED=false`. Neither real receiving QR nor live Slip2Go check has been tested in this work pass. Live merchant API acceptance and a controlled authorized canary remain outstanding.
 - Admin UI work is paused at the merchant's request; do not depend on admin history screens for the payment flow.
+
+## Merchant API preflight (8 November 2026)
+- Official Slip2Go Authentication documentation specifies the *raw* Secret Key as the Authorization header value. Previous Voxel code used a Bearer prefix, so the new game's adapter now follows the published contract, not an unverified assumption. Source: https://slip2go.com/guide/authentication
+- The authenticated owner has a read-only test button on the **game's sign-in screen**, not the deferred admin dashboard. GET `/api/payment/preflight` calls the Slip2Go account-info endpoint with a 12-second timeout and returns a bounded status, shop label, and safe quota values. It **does not** create an order, generate a QR, submit a slip, or change `PAYMENTS_ENABLED`.
+- The button is offered only if `/api/me` confirms `canPaymentPreflight`, using the verified Google UID and server-side `ADMIN_EMAIL` check. Non-owners receive HTTP 403 even if they invoke the URL directly.
+- On mobile, if no order is found in the last seven days, the recovery panel now ends its progress message and offers a one-tap **view-only** checkout preview. This demo does not expose a scan-able PromptPay QR.
+- CI: 86/86 tests passed. Cloudflare staging script deployed, traffic 100%; `PAYMENTS_ENABLED=false`, `PAYMENT_ROLLOUT=canary`, merchant secrets remain encrypted, all six Durable Object bindings remain intact.
+- **Still pending live validation**: owner clicks the read-only API test and reports the result; only after it passes should a separate, explicitly authorized owner-only payment canary be considered. Do not enable general-public checkout or infer a successful real Slip2Go call from unit tests.
