@@ -22,7 +22,8 @@ test('verified transfer must have provider success, unique bank reference, amoun
   assert.throws(()=>validateSlipResponse(good(),20));
   assert.equal(validateSlipResponse({...good(),data:{...good().data,decode:''}},100).reference,'bank-transaction-12345');
   assert.throws(()=>validateSlipResponse({...good(),data:{...good().data,transRef:'',referenceId:''}},100));
-  assert.throws(()=>validateSlipResponse({...good(),data:{...good().data,dateTime:new Date(Date.now()-60*60*1000).toISOString()}},100));
+  // An older authentic bank slip may be uploaded later: order window checks occur in verifySlip.
+  assert.equal(validateSlipResponse({...good(),data:{...good().data,dateTime:new Date(Date.now()-60*60*1000).toISOString()}},100).amount,100);
 });
 test('transfer fingerprint is stable by transaction reference even if a slip image changes',async()=>{
   const a=await transferFingerprint({reference:'004:bank-transaction-12345',qr:'001122334455'});
