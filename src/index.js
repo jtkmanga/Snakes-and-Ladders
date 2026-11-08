@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { getAuthorizedUser, requireSameOrigin } from './security.js';
 import { PRODUCTS, paymentConfigured, paymentReadiness, verifySlip, transferFingerprint } from './payments.js';
 import { createPromptPayPayload } from './promptpay.js';
+import { adminAllowed, validSlipReference, slip2goAccountInfo, slip2goSlipHistory } from './slip2go-admin.js';
 import qrcode from './vendor/qrcode.mjs';
 export { PaymentLedger, Inventory } from './ledger.js';
 import { AVATARS, LUCKY_PRIZES, VIP_LIMIT, VIP_DURATION_MS, createGame, executeRoll, advance, randomInt, TURN_MS } from '../public/rules.js';
@@ -51,12 +52,34 @@ export default {
       merchant:paymentConfigured(env)?{name:env.MERCHANT_DISPLAY_NAME||null,method:'promptpay_qr',account:null}:null
     });
     // All mutations require a verified Firebase Google ID token and same-origin request.
-    const protectedAPI=url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
+    const protectedAPI=url.pathname.startsWith('/api/admin/')||url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
     let user=null;
     if(protectedAPI){
       if(!requireSameOrigin(request))return json({error:'Origin not allowed'},403);
       user=await getAuthorizedUser(request,env);
       if(!user)return json({error:'กรุณาเข้าสู่ระบบด้วย Google'},401);
+    }
+    if(url.pathname.startsWith('/api/admin/')){
+      // All admin endpoints require an authenticated, email-verified Google account.
+      // An allowlisted identity is checked on the server, not trusted from the browser.
+      if(!adminAllowed(user,env))return json({error:'ไม่มีสิทธิ์ใช้งาน Admin'},403);
+      if(request.method!=='GET')return json({error:'Method not allowed'},405);
+      try{
+        if(url.pathname==='/api/admin/slip2go/account'){
+          const info=await slip2goAccountInfo(env);
+          return json({ok:true,account:info});
+        }
+        if(url.pathname==='/api/admin/slip2go/history'){
+          const id=url.searchParams.get('referenceId');
+          if(!validSlipReference(id))return json({error:'ต้องใช้ Slip2Go referenceId ที่ถูกต้อง'},400);
+          const slip=await slip2goSlipHistory(env,id);
+          return json({ok:true,slip});
+        }
+      }catch(e){
+        console.warn('admin provider lookup unavailable');
+        return json({error:'ดึงข้อมูล Slip2Go ไม่สำเร็จ กรุณาตรวจการตั้งค่าและลองใหม่'},502);
+      }
+      return json({error:'Not found'},404);
     }
     const vip=()=>env.VIP.get(env.VIP.idFromName('vip-memberships-v1'));
     const items=()=>env.ITEMS.get(env.ITEMS.idFromName('inventory-v1'));
