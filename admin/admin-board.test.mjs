@@ -52,3 +52,16 @@ test('winner snapshot is durable BEFORE score reset; audit stores actor and serv
  assert.equal(saved.mode,'auto');
  assert.equal(a.audits()[0].action,'reset_vip');
 });
+
+test('SQL award deduplication is atomic across retries and score reset',()=>{
+ const board=new AdminBoard(store().storage);
+ const opts={awardId:'award:win:room-00000000-0000-4000-8000-000000000001',id:'player01',name:'Player',avatar:0,points:10};
+ assert.equal(board.creditOnce(opts,1000),true);
+ assert.equal(board.creditOnce(opts,1001),false);
+ assert.equal(board.leaders()[0].score,10);
+ board.reset({at:1100,server:'free',mode:'manual',actor:'admin@example.org'});
+ assert.equal(board.creditOnce(opts,1101),false);
+ assert.equal(board.leaders().length,0);
+ assert.equal(board.creditOnce({...opts,awardId:'award:win:room-00000000-0000-4000-8000-000000000002'},1200),true);
+ assert.equal(board.leaders()[0].score,10);
+});
