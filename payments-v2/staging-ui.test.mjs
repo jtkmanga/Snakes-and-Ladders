@@ -4,10 +4,10 @@ import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 
-const gamePath=fileURLToPath(new URL('./staging-game-v67.mjs',import.meta.url));
-const htmlPath=fileURLToPath(new URL('./staging-index-v67.html',import.meta.url));
-const cssPath=fileURLToPath(new URL('./staging-style-v64.css',import.meta.url));
-const mainPath=fileURLToPath(new URL('./staging-main-v66.mjs',import.meta.url));
+const gamePath=fileURLToPath(new URL('./staging-game-v68.mjs',import.meta.url));
+const htmlPath=fileURLToPath(new URL('./staging-index-v68.html',import.meta.url));
+const cssPath=fileURLToPath(new URL('./staging-style-v68.css',import.meta.url));
+const mainPath=fileURLToPath(new URL('./staging-main-v68.mjs',import.meta.url));
 const ledgerPath=fileURLToPath(new URL('./staging-ledger-v66.mjs',import.meta.url));
 const game=readFileSync(gamePath,'utf8');
 const html=readFileSync(htmlPath,'utf8');
@@ -55,7 +55,9 @@ test('visible checkout panel is never unconditionally hidden by stylesheet',()=>
  assert.ok(css.includes('#payment-panel[hidden]{display:none!important}'),'must hide while closed');
  assert.ok(css.includes('#payment-panel:not([hidden]){display:block!important;}'),'must show when open');
  assert.ok(!css.includes('#payment-panel,#payment-start-preview'),'must not hide checkout unconditionally');
- assert.ok(css.includes('[data-buy]'),'legacy real-money controls remain hidden');
+ assert.ok(!css.includes('[data-buy],.store-price'),'purchase controls must not be blank-hidden');
+ assert.ok(html.includes('data-buy="shield" type="button" disabled'));
+ assert.ok(html.includes('data-buy="win2" type="button" disabled'));
 });
 
 test('deployed Worker main and DO ledgers must parse as modules',()=>{
@@ -74,8 +76,8 @@ test('V66 buyer integration uses V2 routes exclusively and retains Stage 5 serve
  assert.ok(main.includes("reason:guard.reason"));
  assert.ok(main.includes('PAYMENT_REBUILD_V2_DISABLED'));
  assert.ok(ledger.includes('PaymentV2LiveCoordinator'));
- assert.ok(html.includes('game.js?v=payment-v2-67'));
- assert.ok(html.includes('style.css?v=payment-v2-67'));
+ assert.ok(html.includes('game.js?v=payment-v2-68'));
+ assert.ok(html.includes('style.css?v=payment-v2-68'));
 });
 
 test('verified and fulfilling V2 orders must reconcile without generating a second QR',()=>{
@@ -88,4 +90,13 @@ test('verified and fulfilling V2 orders must reconcile without generating a seco
  assert.ok(buy.includes("o.status==='pending'&&Date.now()<o.expiresAt"));
  assert.ok(buy.includes('await loadPaymentQr(o.id)'));
  assert.ok(game.includes('order.status===\'fulfilling\''));
+});
+
+test('V68 client config hard-locks real checkout while exposing safe product prices',()=>{
+ assert.ok(main.includes('paymentV2Stage5Locked:V2_STAGE5_LOCKED'));
+ assert.ok(main.includes('paymentsEnabled:paymentPublicEnabled(env)&&!V2_STAGE5_LOCKED'));
+ assert.ok(game.includes('publicConfig?.paymentV2Stage5Locked!==true'));
+ assert.ok(game.includes('publicConfig?.paymentV2Stage5Locked===true'));
+ assert.ok(!css.includes('#payment-panel,#payment-start-preview'));
+ assert.ok(html.includes('vip-demo-buy'));
 });
