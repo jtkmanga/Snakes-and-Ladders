@@ -48,7 +48,7 @@ test('mocked Slip2Go adapter sends correct multipart checks and exact server ord
   calls++;
   assert.equal(url,'https://connect.slip2go.com/api/verify-slip/qr-image/info');
   assert.equal(opts.method,'POST');
-  assert.equal(opts.headers.Authorization,'Bearer '+e.SLIP2GO_SECRET);
+  assert.equal(opts.headers.Authorization,e.SLIP2GO_SECRET);
   assert.equal(opts.body.has('file'),true);
   const payload=JSON.parse(opts.body.get('payload'));
   assert.equal(payload.checkDuplicate,true);
