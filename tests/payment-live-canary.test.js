@@ -23,6 +23,7 @@ test('owner-only live canary permits shield at THB 10 only',()=>{
   assert.equal(allowedCanaryItem(env,'shield'),true);
   assert.equal(allowedCanaryItem(env,'win2'),false);
   assert.equal(allowedCanaryItem(env,'vip'),false);
+  assert.equal(allowedCanaryItem({...env,PAYMENT_ROLLOUT:undefined},'vip'),false);
   assert.equal(allowedCanaryItem({...env,PAYMENT_ROLLOUT:'public'},'vip'),true);
   assert.equal(allowedCanaryItem(env,'nonsense'),false);
   assert.match(worker,/if\(!allowedCanaryItem\(env,body\.sku\)\)/);
