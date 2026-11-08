@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>Snakes & Ladders | Payment Admin</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans Thai",sans-serif;color:#61432f}
+*{box-sizing:border-box}body{margin:0;padding:16px;background:linear-gradient(#fff2df,#f4e2c7);min-height:100dvh}
+main{max-width:710px;margin:20px auto;padding:23px;background:#fffefa;border:1px solid #e4c7a6;border-radius:24px;box-shadow:0 6px 25px #765a3520}
+h1{font-size:clamp(23px,5vw,30px);line-height:1.3;margin:0 0 12px}
+h2{font-size:18px;margin:0 0 12px}p{line-height:1.7;overflow-wrap:anywhere}
+a{color:#7e4a32}button{font:inherit;padding:13px 17px;border:0;border-radius:12px;cursor:pointer;color:#fff;background:#80573e}
+button:disabled{opacity:.5}.panel{padding:15px;background:#fbf4e9;border:1px solid #ddc5ab;border-radius:16px;margin:14px 0}
+.subtitle{color:#826950}.warning{background:#fff0d3;border-color:#e5ba81}.good{color:#35624a;font-weight:600}
+#orders{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.7}
+#auth-status{background:#f5ecdd;border-radius:12px;padding:12px}#message{white-space:pre-wrap}
+[hidden]{display:none!important}
+</style></head><body><main>
+<h1>🐍 Payment V2 — หลังบ้าน</h1>
+<p class="subtitle">ระบบชำระเงิน Snakes & Ladders • ข้อมูลเฉพาะผู้ดูแล</p>
+<div class="panel warning"><strong>🔒 เปิดรับเงินจริงแบบจำกัดสิทธิ์</strong>
+<p>ขณะนี้รับคำสั่งซื้อจริงได้เฉพาะผู้ดูแล 1 รายการ ราคา 10 บาท ก่อนเปิดขายสาธารณะ ต้องตรวจการโอนครั้งแรกให้ผ่านทั้งธนาคาร Slip2Go และสิทธิ์ในเกม</p></div>
+<p><a href="/">← กลับหน้าเกม</a></p>
+<p id="auth-status" role="status">กำลังตรวจ Google Login...</p>
+<button id="login" type="button" hidden>🔐 เข้าสู่ระบบ Google</button>
+<section id="admin" hidden>
+<div class="panel"><h2>สถานะเปิดรับเงิน</h2><p id="mode">กำลังอ่านสถานะเซิร์ฟเวอร์...</p></div>
+<div class="panel"><h2>ร้าน Slip2Go</h2><p id="merchant">กำลังตรวจสอบข้อมูลร้าน...</p>
+<small class="subtitle">การเชื่อมต่อร้านสำเร็จไม่ใช่หลักฐานว่าได้รับเงินแล้ว ทุกคำสั่งซื้อยังต้องตรวจสลิปจริง</small></div>
+<div class="panel"><h2>คำสั่งซื้อของบัญชีผู้ดูแล</h2>
+<p id="orders" role="status">กำลังอ่านรายการ...</p></div>
+<button id="refresh" type="button">🔄 รีเฟรชสถานะ</button>
+<p id="message" class="subtitle" role="status"></p>
+</section></main>
+<script type="module">
+import * as auth from './auth.js';
+const $=id=>document.getElementById(id);
+let authorized=false;
+async function api(path){
+ const token=await auth.idToken();
+ const r=await fetch(path,{cache:'no-store',headers:{Authorization:'Bearer '+token,Accept:'application/json'}});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(data.error||'HTTP '+r.status);
+ return data;
+}
+async function refresh(){
+ if(!authorized)return;
+ $('refresh').disabled=true;$('message').textContent='กำลังโหลดข้อมูลจาก Cloudflare...';
+ try{
+  const status=await fetch('/api/payments/v2/live/status',{cache:'no-store'}).then(r=>r.json());
+  $('mode').textContent=status.acceptingPayments?
+   'เปิดรับเงินจริงเฉพาะบัญชีผู้ดูแล • รายการเกราะกันงู 10 บาท (Canary)':
+   'ระบบรับเงินจริงยังปิดอยู่';
+ }catch{$('mode').textContent='ไม่สามารถอ่านสถานะเซิร์ฟเวอร์ได้';}
+ try{
+  const provider=await api('/api/payment/preflight');
+  $('merchant').textContent='ร้าน: '+(provider.shopName||'-')+' • แพ็กเกจ: '+(provider.package||'-')+
+   ' • โทเคนคงเหลือ: '+(provider.tokenRemaining??'-')+
+   ' • โควตา QR: '+(provider.quotaQrRemaining??'-')+
+   ' • ตรวจสอบจากผู้ให้บริการแล้ว (ยังไม่ยืนยันการรับเงินจริง)';
+ }catch(e){$('merchant').textContent='⚠️ ยังตรวจสอบร้านไม่ได้: '+e.message;}
+ try{
+  const list=await api('/api/payments/v2/live/orders');
+  const orders=Array.isArray(list.orders)?list.orders:[];
+  $('orders').textContent=orders.length?orders.map(o=>[
+   'คำสั่งซื้อ: '+o.id,
+   'สินค้า: '+o.sku+' • '+o.amountBaht+' บาท',
+   'สถานะ: '+o.status,
+   'สร้างเมื่อ: '+new Date(o.createdAt).toLocaleString('th-TH'),
+   '---'
+  ].join('\n')).join('\n'):'ยังไม่มีคำสั่งซื้อเงินจริงในบัญชีผู้ดูแล';
+ }catch(e){$('orders').textContent='⚠️ อ่านรายการไม่ได้: '+e.message;}
+ $('message').textContent='ข้อมูลล่าสุด '+new Date().toLocaleString('th-TH');
+ $('refresh').disabled=false;
+}
+async function check(u){
+ authorized=false;$('admin').hidden=true;$('login').hidden=!!u;
+ if(!u){$('auth-status').textContent='โปรดล็อกอินด้วยบัญชีผู้ดูแล';return;}
+ $('auth-status').textContent='กำลังตรวจสิทธิ์ผู้ดูแล...';
+ try{
+  const session=await api('/api/admin/session');
+  if(!session.admin){$('auth-status').textContent='บัญชีนี้ไม่ได้รับสิทธิ์ผู้ดูแล';return;}
+  authorized=true;$('auth-status').textContent='✅ ล็อกอินผู้ดูแลสำเร็จ';
+  $('admin').hidden=false;await refresh();
+ }catch{$('auth-status').textContent='ไม่สามารถยืนยันสิทธิ์ผู้ดูแลได้';}
+}
+$('login').addEventListener('click',()=>auth.signIn().catch(()=>{$('auth-status').textContent='Google Login ไม่สำเร็จ';}));
+$('refresh').addEventListener('click',refresh);
+(async()=>{try{const r=await fetch('/api/config',{cache:'no-store'}),config=await r.json();if(!config.firebase)throw Error();await auth.initialize(config.firebase,check);}
+ catch{$('auth-status').textContent='ตั้งค่า Google Login ไม่สำเร็จ';}})();
+</script></body></html>
