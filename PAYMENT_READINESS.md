@@ -21,7 +21,7 @@ Store in Cloudflare Worker **Secrets** (never regular plaintext variables):
 - `MERCHANT_ACCOUNT_NUMBER` — Thai PromptPay mobile number (10 digits). No full phone is presented as text in the game.
 
 Set Worker **Vars**:
-- `SLIP2GO_API_BASE_URL` — verified HTTPS API origin from Slip2Go documentation/dashboard; confirm before activation.
+- `SLIP2GO_API_BASE_URL=https://connect.slip2go.com/` — confirmed by the merchant's supplied REST endpoint `https://connect.slip2go.com/api/verify-slip/qr-image/info`. The Worker now allows ONLY this HTTPS origin.
 - `MERCHANT_ACCOUNT_TYPE=02001` — Slip2Go's code for PromptPay by mobile number.
 - `MERCHANT_DISPLAY_NAME=Lucky Game` — recipient label shown in the game.
 - Optional `MERCHANT_ACCOUNT_NAME_TH` — recipient Thai legal name verification.
