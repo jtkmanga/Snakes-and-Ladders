@@ -1,0 +1,85 @@
+export class Scores extends DurableObject {
+  board(){return new AdminBoard(this.ctx.storage);}
+  async ensureBoard(server){
+    if(server!=='free'&&server!=='vip')throw Error('invalid_score_server');
+    const kv=this.ctx.storage.kv;
+    const existing=kv.get('admin:server');
+    if(existing&&existing!==server)throw Error('board_instance_mismatch');
+    const board=this.board(),now=Date.now();
+    if(!existing){
+      board.seed(kv.get('leaders')||[],now);
+      kv.put('admin:server',server);
+    }
+    let due=kv.get('admin:nextReset');
+    if(!Number.isSafeInteger(due)||due<=0){
+      due=nextResetAt(now,server);
+      kv.put('admin:nextReset',due);
+      await this.ctx.storage.setAlarm(due);
+    }
+    if(due<=now){
+      board.reset({server,at:due,mode:'auto',actor:'scheduler'});
+      kv.put('leaders',[]);
+      due=nextResetAt(now,server);
+      kv.put('admin:nextReset',due);
+      await this.ctx.storage.setAlarm(due);
+    }
+    return board;
+  }
+  async alarm(){
+    const server=this.ctx.storage.kv.get('admin:server');
+    if(server==='free'||server==='vip')await this.ensureBoard(server);
+  }
+  async credit({id,name,avatar,gameId,points=10,server}){
+    if(points!==10&&points!==20)return false;
+    return this.award({id,name,avatar,gameId,points,kind:'win',server});
+  }
+  async creditPrize({id,name,avatar,gameId,points,server}){
+    if(!LUCKY_PRIZES.some(p=>p.points===points))return false;
+    return this.award({id,name,avatar,gameId,points,kind:'box',server});
+  }
+  async award({id,name,avatar,gameId,points,kind,server}){
+    if(!validId(id)||!validRoom(gameId)||!['win','box'].includes(kind)||!Number.isInteger(points))return false;
+    const board=await this.ensureBoard(server);
+    const key='award:'+kind+':'+gameId;
+    if(this.ctx.storage.kv.get(key))return false;
+    if(!board.award({id,name,avatar,points}))return false;
+    this.ctx.storage.kv.put(key,id);
+    this.ctx.storage.kv.put('leaders',board.leaders());
+    return true;
+  }
+  async getLeaders(server){const b=await this.ensureBoard(server);return b.leaders();}
+  async rename({id,name,server}){
+    const b=await this.ensureBoard(server);
+    const changed=b.rename({id,name});
+    if(changed)this.ctx.storage.kv.put('leaders',b.leaders());
+    return changed;
+  }
+  async heartbeat({id,email,name,avatar,server}){
+    const b=await this.ensureBoard(server);
+    return {ok:b.touch({id,email,name,avatar,online:true})};
+  }
+  async adminPlayers({server,onlineOnly=false,limit=150,offset=0}){
+    const b=await this.ensureBoard(server);
+    return {ok:true,server,...b.players({onlineOnly,limit,offset}),nextReset:this.ctx.storage.kv.get('admin:nextReset'),serverTime:Date.now()};
+  }
+  async adminEdit({server,uid,name,score,actor}){
+    const b=await this.ensureBoard(server);
+    const result=b.edit({uid,name,score},actor);
+    if(result.ok)this.ctx.storage.kv.put('leaders',b.leaders());
+    return result;
+  }
+  async adminReset({server,actor}){
+    const b=await this.ensureBoard(server);
+    const result=b.reset({at:Date.now(),mode:'manual',actor,server});
+    this.ctx.storage.kv.put('leaders',[]);
+    return {...result,nextReset:this.ctx.storage.kv.get('admin:nextReset')};
+  }
+  async adminHistory({server}){
+    const b=await this.ensureBoard(server);
+    return {ok:true,server,nextReset:this.ctx.storage.kv.get('admin:nextReset'),history:b.history()};
+  }
+  async adminAudit({server}){
+    const b=await this.ensureBoard(server);
+    return {ok:true,server,actions:b.audits()};
+  }
+}
