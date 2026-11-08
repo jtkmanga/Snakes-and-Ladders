@@ -1,3 +1,22 @@
+## 8 November 2026 — V67 staged, real-payment test deliberately paused
+
+The owner supplied a mobile Chrome screen recording demonstrating that the VIP demo purchase and "my test orders" buttons appeared unresponsive. **Root cause was the old staging CSS rule** that included \`#payment-panel\` in an unconditional \`display:none!important\` group. Staging V63 fixed it; V64 introduced a separately unit-tested SQLite buyer preview ledger; V65 prepared the authenticated live V2 route families; V66 moved the real-checkout client to those V2 paths; V67 prevents reissuing payable QR when an order is already verified/fulfilling and forces a fresh mobile JS/CSS version.
+
+- Live staging Worker **V67**, 100% deployment; Google login/config and 18 bindings preserved.
+- Synthetic checkout in the game: Firebase-token-owned \`/api/payments/v2/demo-orders\` with server-set amounts 10/20/100, recent history and simulated outcomes. Records remain in isolated \`payment-v2-game-preview-v1\` DO; they **never** create payable QR, contact Slip2Go or grant real VIP/items.
+- CI-tested portable \`payments-v2/buyer-preview-ledger.mjs\` powers the actual Cloudflare demo DO methods. SQLite tests verify reuse, cross-account isolation, expiry, rates, simulated receipt idempotency and pricing.
+- New **prepared** V2 owner-canary routes \`/api/payments/v2/live/status\`, \`/api/payments/v2/live/orders\`, \`/api/payments/v2/live/orders/:id\`, \`.../:id/qr\`, \`.../:id/slip\`, and \`.../:id/reconcile\`. These use the **separate** \`payment-v2-paid-ledger-v1\` DO instance with \`PaymentV2AtomicLedger\`, the E-Wallet PromptPay QR builder, the Slip2Go server verifier and idempotent VIP/Inventory coordinator.
+- These live routes are **NOT usable yet**: \`payments-v2/provider-stage.mjs\` sets \`V2_STAGE5_LOCKED=true\` and the Worker checks \`liveCheckoutOpen()\` before any order, QR, slip verification or delivery. Separately, Cloudflare stays \`PAYMENTS_ENABLED=false\`, \`PAYMENT_ROLLOUT=disabled\`, and does NOT have a production owner-canary enable binding. **Do not change these flags** until the owner has a funding account and explicitly authorizes Stage 5.
+- Full chain under test injection was exercised **offline with a mocked Slip2Go response**: order → QR payload → verified 200200 → atomic transfer claim → VIP activation once → outbox complete. Other tests reject wrong amount, replay across players and full VIP capacity. These fake responses are not real banking confirmation.
+- Mobile UI V67 treats verified/fulfilling orders as reconciliation cases, **never instructs a second payment or generates a second QR**. Actual settlement/entitlement behavior still needs final user bank-transfer E2E verification.
+- GitHub test and deployment source snapshots: \`staging-game-v67.mjs\`, \`staging-index-v67.html\`, \`staging-style-v64.css\`, \`staging-main-v66.mjs\`, \`staging-ledger-v66.mjs\` and \`staging-ui.test.mjs\`.
+
+**Stop at Stage 5.** No live bank-transfer experiment, payable QR, public enrollment, or VIP credit. Before changing the lock, revalidate destination account ownership with the merchant, inspect Slip2Go subscription/credits, confirm the current bank and QR type, run authenticated mobile smoke tests, and get explicit owner approval. The first genuine transfer will be a small, owner-authorized canary and must reconcile on both the bank and provider dashboard; until that succeeds, do not claim real payments work 100%.
+
+Staging game: https://snakes-and-ladders-staging.jtkmanga.workers.dev/?v=67
+
+---
+
 ## 2026-11-08 — buyer checkout mock in game (V62, no actual payments)
 
 **User approval:** Continue implementing stages 1–4 but STOP before stage 5 (the first low-value real-money transfer). The owner cannot run a bank transfer test yet. DO NOT request money, enable payable QR, or activate production payment flags.
@@ -21,7 +40,7 @@
 
 # Snakes & Ladders — Payment V2 (STAGING / NOT LIVE)
 
-**Updated 8 November 2026 — Worker V62.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
+**Updated 8 November 2026 — Worker V67.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
 
 ## What is verified in staging
 
