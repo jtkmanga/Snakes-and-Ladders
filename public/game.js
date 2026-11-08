@@ -364,17 +364,20 @@ async function authorizedFetch(path,options={}){
 }
 function updatePaymentPurchaseAccess(){
   const permitted=Boolean(publicConfig?.paymentsEnabled||serverMe?.canPurchase);
+  const canaryOnly=Boolean(serverMe?.paymentCanaryOnly&&!publicConfig?.paymentsEnabled);
   $('payment-preflight').hidden=!Boolean(serverMe?.canPaymentPreflight);
-  $('payment-availability').textContent=publicConfig?.paymentsEnabled
-    ?'🧾 เปิดชำระเงินจริงผ่าน Slip2Go'
-    :serverMe?.canPurchase
-      ?'👑 โหมดทดสอบชำระเงินจริงสำหรับเจ้าของเกมเท่านั้น'
+  $('payment-availability').textContent=canaryOnly&&permitted
+    ?'🧪 ทดลองชำระเงินจริงเฉพาะเจ้าของเกม: เกราะกันงู 10 บาทเพียงหนึ่งรายการ • ตรวจบัญชีธนาคารก่อนโอน'
+    :publicConfig?.paymentsEnabled
+      ?'🧾 เปิดชำระเงินจริงผ่าน Slip2Go'
       :'🔒 ยังไม่เปิดรับชำระเงินจริง';
-  for(const btn of document.querySelectorAll('[data-buy]'))btn.disabled=!permitted;
-  $('vip-buy').disabled=!permitted;
-  $('vip-buy').textContent=permitted
-    ?'👑 สมัคร VIP ฿100 / 30 วัน'
-    :'👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)';
+  for(const btn of document.querySelectorAll('[data-buy]'))
+    btn.disabled=!permitted||(canaryOnly&&btn.dataset.buy!=='shield');
+  $('vip-buy').disabled=!permitted||canaryOnly;
+  $('vip-buy').textContent=canaryOnly&&permitted
+    ?'👑 VIP ฿100 (รอทดสอบรายการ 10 บาทก่อน)'
+    :permitted?'👑 สมัคร VIP ฿100 / 30 วัน'
+      :'👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)';
 }
 async function initializeOnlineServices(){
   const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)return;
@@ -573,8 +576,8 @@ function showPaymentPreview(){
 }
 async function buyProduct(sku){
   $('payment-start-preview').hidden=true;
-  $('payment-slip').disabled=false;
-  $('payment-submit').disabled=false;
+  $('payment-slip').disabled=true;
+  $('payment-submit').disabled=true;
   if(!publicConfig?.paymentsEnabled&&!serverMe?.canPurchase){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
   if(!googleUser){showModal('ต้องล็อกอินก่อนซื้อ','โปรดเข้าสู่ระบบด้วย Google แล้วกลับมาที่ร้านค้าอีกครั้ง','🔐');return;}
   const panel=$('payment-panel');panel.hidden=false;
@@ -584,17 +587,38 @@ async function buyProduct(sku){
   $('payment-progress').textContent='กำลังสร้างคำสั่งซื้อ…';
   try{
     const response=await authorizedFetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sku})});
-    const data=await response.json();if(!response.ok)throw Error(data.error||'สร้างคำสั่งซื้อไม่สำเร็จ');
+    const data=await response.json();
+    if(!response.ok){
+      const d=data?.diagnostic||{};
+      const code=d.providerCode?' ['+d.providerCode+']':'';
+      const advice=SLIP2GO_DIAGNOSTIC_LABELS[d.providerCode]||({
+        network:'เชื่อมต่อ Slip2Go ไม่ได้ ให้ตรวจเครือข่ายหรือ IP Whitelist',
+        timeout:'Slip2Go ตอบกลับช้าเกินไป',
+        configuration:'Secret หรือ Endpoint ยังไม่ถูกต้อง',
+        non_json:'ปลายทางไม่ได้ส่ง JSON กลับมา',
+        provider_http:'Slip2Go ปฏิเสธคำขอ',
+        provider_code:'Slip2Go ตอบรหัสข้อผิดพลาด'
+      }[d.reason])||'';
+      const gateMessage=({merchant_name_mismatch:'ชื่อร้านใน Slip2Go ไม่ตรงกับร้านรับเงินที่ตั้งค่า',
+        merchant_package_expired_or_unknown:'แพ็กเกจ Slip2Go หมดอายุหรือยืนยันวันหมดอายุไม่ได้',
+        merchant_no_verification_quota:'โทเคน/เครดิตตรวจสลิปไม่เพียงพอ'}[data.preflightReason])||'';
+      throw Error((data.error||'สร้างคำสั่งซื้อไม่สำเร็จ')+(advice?' • '+advice+code:'')+(gateMessage?' • '+gateMessage:''));
+    }
     const o=data.order;
     $('payment-order').textContent=o.id;
     $('payment-amount').textContent=String(o.amount)+' บาท';
     $('payment-recipient').textContent=publicConfig.merchant?.name||'ร้าน Lucky Game';
     panel.dataset.order=o.id;
-    $('payment-reconcile').hidden=false;
+    $('payment-reconcile').hidden=true;
     $('payment-progress').textContent='กำลังสร้างภาพ QR พร้อมเพย์ตามยอดคำสั่งซื้อ…';
     await loadPaymentQr(o.id);
-    $('payment-progress').textContent='ตรวจสอบชื่อผู้รับและยอดในแอปธนาคารก่อนโอนภายใน 15 นาที แล้วแนบรูปสลิปจริง';
-  }catch(e){$('payment-progress').textContent='❌ '+e.message;}
+    $('payment-slip').disabled=false;
+    $('payment-submit').disabled=false;
+    $('payment-progress').textContent='QR ชำระเงินจริงสำหรับบัญชีทดสอบ • ตรวจชื่อบัญชีรับเงินและยอดในแอปธนาคารก่อนโอนภายใน 15 นาที เมื่อโอนแล้วแนบสลิปจริงด้านล่าง';
+  }catch(e){
+    $('payment-slip').disabled=true;$('payment-submit').disabled=true;
+    $('payment-progress').textContent='❌ '+e.message+' • อย่าโอนเงินถ้าไม่เห็น QR ตามคำสั่งซื้อ';
+  }
   panel.scrollIntoView({behavior:'smooth',block:'center'});
 }
 async function submitSlip(){
