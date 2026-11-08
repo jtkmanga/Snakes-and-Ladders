@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f8ebd7">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Snakes & Ladders — Admin Slip2Go</title>
+  <link rel="stylesheet" href="./admin.css">
+</head>
+<body>
+<main class="container">
+  <header class="topbar">
+    <div class="brand"><span class="logo">🐍</span><div><strong>Snakes & Ladders</strong><small>ระบบหลังบ้าน · Staging</small></div></div>
+    <a href="/" class="back">← กลับหน้าเกม</a>
+  </header>
+  <section class="intro">
+    <span class="kicker">🔐 ADMIN DASHBOARD</span>
+    <h1>จัดการ Slip2Go</h1>
+    <p>ดูโควตาของร้าน Lucky Game และตรวจข้อมูลสลิปเดิมโดยไม่ต้องส่งภาพซ้ำ</p>
+    <span class="safety">🔒 ระบบรับเงินจริงยังปิดอยู่ • ไม่มีปุ่มเปิดรับเงินในหน้านี้</span>
+  </section>
+  <section class="panel" id="sign-in-panel">
+    <div class="section-head"><h2>👤 ยืนยันตัวตนผู้ดูแล</h2><span id="session-badge" class="pill">ยังไม่เข้าสู่ระบบ</span></div>
+    <p id="auth-message" class="muted" role="status">กำลังตรวจสอบการเชื่อมต่อ Firebase…</p>
+    <div class="actions"><button id="sign-in" type="button">เข้าสู่ระบบด้วย Google</button><button id="sign-out" type="button" class="secondary" hidden>ออกจากระบบ</button></div>
+  </section>
+  <section id="admin-content" hidden>
+    <div class="cards">
+      <section class="panel">
+        <div class="section-head"><h2>📊 ข้อมูลบัญชี Slip2Go</h2><button id="refresh-account" type="button" class="secondary">↻ โหลดข้อมูล</button></div>
+        <p class="muted" id="account-message" role="status">กดโหลดข้อมูลเพื่อตรวจสอบบัญชีร้าน</p>
+        <div class="overview">
+          <div class="number-card"><span>โทเคนคงเหลือ</span><strong id="token-remaining">—</strong></div>
+          <div class="number-card"><span>เครดิตคงเหลือ</span><strong id="credit-remaining">—</strong></div>
+          <div class="number-card"><span>โควตา QR คงเหลือ</span><strong id="qr-remaining">—</strong></div>
+          <div class="number-card"><span>ตรวจสลิปได้อีกประมาณ</span><strong id="slip-estimated">—</strong></div>
+        </div>
+        <dl class="detail-grid">
+          <dt>ชื่อร้าน</dt><dd id="shop-name">—</dd>
+          <dt>แพ็กเกจ</dt><dd id="shop-package">—</dd>
+          <dt>วันหมดอายุ</dt><dd id="package-expires">—</dd>
+          <dt>ต้นทุนโทเคน / สลิป</dt><dd id="token-per-slip">—</dd>
+        </dl>
+      </section>
+      <section class="panel">
+        <div class="section-head"><h2>🧾 ตรวจประวัติสลิปเดิม</h2></div>
+        <p class="muted">ใช้ <strong>Slip2Go referenceId</strong> ของสลิปที่เคยตรวจแล้ว (ไม่ใช่หมายเลขคำสั่งซื้อในเกม) การค้นหานี้ไม่ได้เปิดสิทธิ์ VIP</p>
+        <form id="slip-form">
+          <label for="slip-reference">Slip2Go referenceId</label>
+          <input id="slip-reference" type="text" maxlength="128" minlength="6" pattern="[A-Za-z0-9_\-]+" spellcheck="false" autocomplete="off" placeholder="เช่น UUID จากประวัติ Slip2Go" required>
+          <button type="submit" id="lookup-slip">ค้นหาสลิป</button>
+        </form>
+        <p id="slip-message" class="muted" role="status">ยังไม่ได้ค้นหา</p>
+        <dl id="slip-details" class="detail-grid" hidden>
+          <dt>Reference ID</dt><dd id="result-reference">—</dd>
+          <dt>รหัสธนาคาร</dt><dd id="result-transaction">—</dd>
+          <dt>ยอดโอน</dt><dd id="result-amount">—</dd>
+          <dt>วันที่โอน</dt><dd id="result-date">—</dd>
+          <dt>วันที่ตรวจ</dt><dd id="result-verified">—</dd>
+          <dt>ธนาคารผู้รับ</dt><dd id="result-bank">—</dd>
+          <dt>บัญชีผู้รับ (ปิดบัง)</dt><dd id="result-receiver">—</dd>
+          <dt>ธนาคารผู้โอน</dt><dd id="result-sender-bank">—</dd>
+        </dl>
+      </section>
+    </div>
+    <p class="fineprint">ข้อมูลหลังบ้านอ่านได้เฉพาะบัญชี Admin ที่ได้รับอนุญาตจากเซิร์ฟเวอร์ • ไม่แสดงหมายเลขบัญชีเต็มหรือ QR ของสลิป • คำขอทั้งหมดผ่าน Cloudflare Worker</p>
+  </section>
+</main>
+<script type="module" src="./admin.js"></script>
+</body>
+</html>
