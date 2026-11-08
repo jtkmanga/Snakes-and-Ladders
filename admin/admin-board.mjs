@@ -23,6 +23,7 @@ export class AdminBoard {
   this.s.sql.exec("CREATE INDEX IF NOT EXISTS idx_admin_score ON admin_players(score DESC,uid ASC)");
   this.s.sql.exec("CREATE INDEX IF NOT EXISTS idx_admin_online ON admin_players(last_seen DESC)");
   this.s.sql.exec("CREATE TABLE IF NOT EXISTS admin_resets (id INTEGER PRIMARY KEY AUTOINCREMENT, reset_at INTEGER NOT NULL, performed_at INTEGER NOT NULL, mode TEXT NOT NULL, actor TEXT NOT NULL, winner_uid TEXT, winner_name TEXT, winner_email TEXT, winner_score INTEGER NOT NULL DEFAULT 0, player_count INTEGER NOT NULL)");
+  this.s.sql.exec("CREATE TABLE IF NOT EXISTS admin_awards (award_id TEXT PRIMARY KEY,uid TEXT NOT NULL,points INTEGER NOT NULL,at INTEGER NOT NULL)");
   this.s.sql.exec("CREATE TABLE IF NOT EXISTS admin_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, target_uid TEXT, detail TEXT NOT NULL)");
  }
  rows(query,...args){return this.s.sql.exec(query,...args).toArray();}
@@ -39,6 +40,16 @@ export class AdminBoard {
   this.s.sql.exec("INSERT INTO admin_players(uid,email,name,avatar,score,last_seen,joined_at,updated_at) VALUES(?,?,?,?,0,?,?,?) ON CONFLICT(uid) DO UPDATE SET email=COALESCE(excluded.email,admin_players.email),name=excluded.name,avatar=excluded.avatar,last_seen=CASE WHEN ? THEN excluded.last_seen ELSE admin_players.last_seen END,updated_at=excluded.updated_at",
    id,knownEmail,n,Number.isInteger(avatar)?avatar:0,online?now:0,now,now,online?1:0);
   return true;
+ }
+ creditOnce({awardId,id,name,avatar,points},now=Date.now()){
+  if(typeof awardId!=='string'||awardId.length>160||!validUid(id)||!Number.isSafeInteger(points)||points<=0||points>200)return false;
+  return this.s.transactionSync(()=>{
+   if(this.one('SELECT award_id FROM admin_awards WHERE award_id=?',awardId))return false;
+   if(!this.touch({id,name,avatar,online:false},now))return false;
+   this.s.sql.exec('INSERT INTO admin_awards(award_id,uid,points,at) VALUES(?,?,?,?)',awardId,id,points,now);
+   this.s.sql.exec('UPDATE admin_players SET score=MIN(?,score+?),updated_at=? WHERE uid=?',MAX_SCORE,points,now,id);
+   return true;
+  });
  }
  award({id,name,avatar,points},now=Date.now()){
   if(!validUid(id)||!Number.isSafeInteger(points)||points<1||points>200)return false;
