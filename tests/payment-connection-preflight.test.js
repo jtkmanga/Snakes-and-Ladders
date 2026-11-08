@@ -61,6 +61,9 @@ test('mobile preflight button stays hidden except for owner, and no-order recove
   assert.match(ui,/authorizedFetch\('\/api\/payment\/preflight',\{method:'GET'\}\)/);
   assert.match(ui,/\$\('payment-preflight'\)\.addEventListener\('click',testPaymentConnection\)/);
   assert.match(ui,/ไม่มี QR เพราะยังไม่มีคำสั่งซื้อจริง/);
+  assert.match(html,/id="payment-start-preview"[^>]*hidden/);
+  assert.match(ui,/\$\('payment-start-preview'\)\.hidden=false/);
+  assert.match(ui,/\$\('payment-start-preview'\)\.addEventListener\('click',showPaymentPreview\)/);
   const section=ui.slice(ui.indexOf('async function testPaymentConnection(){'),ui.indexOf('async function restoreLastPayment(){'));
   assert.doesNotMatch(section,/method:'POST'|\/verify|\/api\/orders/);
 });
