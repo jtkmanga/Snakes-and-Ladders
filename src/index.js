@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { getAuthorizedUser, requireSameOrigin } from './security.js';
 import { PRODUCTS, paymentConfigured, paymentReadiness, verifySlip, transferFingerprint } from './payments.js';
 import { createPromptPayPayload } from './promptpay.js';
-import { adminAllowed, validSlipReference, slip2goAccountInfo, slip2goSlipHistory } from './slip2go-admin.js';
+import { adminAllowed, validSlipReference, slip2goAccountInfo, slip2goSlipHistory, Slip2GoAdminError } from './slip2go-admin.js';
 import qrcode from './vendor/qrcode.mjs';
 export { PaymentLedger, Inventory } from './ledger.js';
 import { AVATARS, LUCKY_PRIZES, VIP_LIMIT, VIP_DURATION_MS, createGame, executeRoll, advance, randomInt, TURN_MS } from '../public/rules.js';
@@ -77,8 +77,15 @@ export default {
           return json({ok:true,slip});
         }
       }catch(e){
-        console.warn('admin provider lookup unavailable');
-        return json({error:'ดึงข้อมูล Slip2Go ไม่สำเร็จ กรุณาตรวจการตั้งค่าและลองใหม่'},502);
+        // Only bounded, enumerated diagnostic metadata is returned to the verified Admin.
+        // No raw provider message, Authorization header, bank account, or slip payload.
+        if(e instanceof Slip2GoAdminError){
+          const diagnostic=e.publicDiagnostic();
+          console.warn('admin Slip2Go lookup failed',diagnostic.reason,diagnostic.httpStatus,diagnostic.providerCode);
+          return json({error:'ดึงข้อมูล Slip2Go ไม่สำเร็จ',diagnostic},502);
+        }
+        console.warn('admin Slip2Go lookup failed unexpectedly');
+        return json({error:'ดึงข้อมูล Slip2Go ไม่สำเร็จ',diagnostic:{reason:'internal',httpStatus:null,providerCode:null}},502);
       }
       return json({error:'Not found'},404);
     }
