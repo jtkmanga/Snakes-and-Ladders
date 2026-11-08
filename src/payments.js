@@ -75,7 +75,7 @@ export async function verifySlip(file,order,env){
   };
   const form=new FormData();form.append('file',file,file.name?.slice(0,80)||'slip.jpg');form.append('payload',JSON.stringify(checks));
   const response=await fetch(providerEndpoint(env),{method:'POST',// Slip2Go's documented API authorization is the raw secret as header value.
-    headers:{Authorization:env.SLIP2GO_SECRET},body:form,signal:AbortSignal.timeout(15000)});
+    headers:{Authorization:env.SLIP2GO_SECRET},body:form,redirect:'manual',signal:AbortSignal.timeout(15000)});
   const answer=await response.json().catch(()=>({}));
   if(!response.ok)throw Error('Slip2Go ตรวจสอบไม่ได้');
   const validated=validateSlipResponse(answer,order.amount);
