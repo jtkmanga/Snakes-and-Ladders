@@ -1,3 +1,24 @@
+## 8 November 2026 — Live-money owner-only canary, Worker V72
+
+The owner explicitly asked for a REAL payment flow and for ALL payment simulation buttons to be removed. This supersedes the old Stage 5 hold instruction FOR OWNER ONLY. Public payment rollout remains prohibited pending first transfer confirmation.
+
+Cloudflare staging V72: 100% deployed, 19 bindings with the existing secret provider key and E-Wallet receiver; PAYMENTS_ENABLED=true, PAYMENT_ROLLOUT=canary, PAYMENT_V2_OWNER_CANARY=explicitly_approved, and code V2_STAGE5_LOCKED=false. Verified Firebase Google owner identity is mandatory. Non-admin buyers get 403; no public checkout is enabled.
+
+Real-money first transaction is limited to ONE shield order at 10 THB globally in the dedicated payment-v2-paid-ledger-v1 Durable Object. VIP 100 THB and win2 20 THB remain disabled until first bank transfer is verified. Before order creation and before returning a payable QR, the Cloudflare Worker performs read-only Slip2Go merchant checks including shop name, package expiry and available quota. Failed checks return 503 and no payable QR.
+
+The actual V2 path includes server-authoritative pricing, one UID per order, unique transfer fingerprints, provider verification code 200200, strict payee/amount/time validation, atomic state transitions, and idempotent downstream item/VIP grant interfaces. Offline tests are green, but no actual bank transfer has yet been observed.
+
+V69 game frontend removes payment demo, trial purchase, simulated slips, mock history, preview and free-item trial buttons. Real purchase, PromptPay QR, PNG/JPEG slip upload, and order recovery controls remain. The gameplay bot/practice mode remains intentionally.
+
+V72 Admin replaced the large demo diagnostics page with Google-authenticated read-only Slip2Go shop status, owner paid-order history and refresh. All admin payment simulation buttons were removed. CI snapshots: staging-game-v69.mjs, staging-index-v69.html, staging-admin-v72.html, staging-main-v72.mjs and their test files.
+
+Still unproven before public rollout: owner checks the bank payee name in a real mobile banking app, an actual 10-baht bank transfer is reconciled with Slip2Go, exactly-once in-game entitlement is observed, and refund/support/expired-order handling is reviewed. Real payments are not confirmed end-to-end until that happens. Never enable PAYMENT_ROLLOUT=public automatically.
+
+Staging: https://snakes-and-ladders-staging.jtkmanga.workers.dev/?v=72
+Owner Admin: https://snakes-and-ladders-staging.jtkmanga.workers.dev/admin
+GitHub branch payment-v2-rebuild, Draft PR #2. No merge to main or public deployment.
+
+---
 ## 8 November 2026 — Staging Worker V68, pre-live checkout build complete
 
 **Owner instruction remains in force:** finish non-monetary development; stop BEFORE the first real bank transfer. Do not switch on real payments or direct any player to send money.
