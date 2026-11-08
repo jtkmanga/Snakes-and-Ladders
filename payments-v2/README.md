@@ -10,7 +10,7 @@
 - Thai QR E-Wallet data structure and CRC for 10 and 100 THB passed *in-memory* checks; no payable QR was issued.
 - Admin-only sandbox test orders for shield (10 THB), win2 (20 THB), and VIP 30 days (100 THB) were written and retrieved using a **separate** Durable Object instance `payment-v2-sandbox-only`.
 - Six mock validation cases and a *synthetic* replay key survived storage and were checked on the admin page. These results are NOT evidence of a bank transaction or live provider slip check.
-- The last verified live Worker remains V56. It does **not** contain the new real-slip adapter, atomic paid ledger, or delivery coordinator.
+- The current **staging Worker is V57** with an **admin-only atomic SQLite smoke test** mounted on a distinct Durable Object ID `payment-v2-atomic-sandbox-v1`; its route is `/api/payments/v2/atomic-smoke`. This route accepts synthetic test inputs generated on the server only and cannot call Slip2Go, issue payable QR, or activate VIP. The real-slip adapter and delivery coordinator **remain GitHub-only**, and the actual buyer-facing paid-order workflow is still disabled.
 
 ## Current reviewed source files — NOT connected to live checkout
 
@@ -45,7 +45,7 @@ node --test payments-v2/*.test.mjs
 
 ## Future integration (not yet live)
 
-- Owner-only admin *test* routes can be used to test atomic SQLite on a distinct `payment-v2-atomic-sandbox-v1` instance without real QR or entitlements.
+- The staging Worker V57 provides owner-only buttons **🧪 ทดสอบฐานข้อมูลอะตอมมิก (จำลอง)** and **📚 ดูประวัติทดสอบอะตอมมิก** on `/admin?v=57`. The tests run against a distinct `payment-v2-atomic-sandbox-v1` instance without real QR or entitlements. **Owner must still run the button and verify results; deploy success alone is not a passing smoke test.**
 - Only after tests, implement authenticated buyer endpoints for pending V2 orders, QR display and slip upload; wire server coordinator to provider and dedicated global ledger; use existing VIP/Inventory idempotent methods.
 - Stage canary first with the owner's explicit approval for a real transfer, then review before public rollout.
 - Keep the V1 payment endpoints quarantined, and retain all old player privileges.
