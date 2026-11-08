@@ -24,11 +24,17 @@ export function createPendingOrder({uid,sku,uuid,now=Date.now()}){
 export function makeProviderChecks(order,receiver){
   if(!order||order.version!==2||!VALID_SKU.has(order.sku)
       ||PRODUCTS_V2[order.sku].amountBaht!==order.amountBaht)throw Error('invalid_order');
+  const receiverPatterns={
+    '02001':/^0[689]\d{8}$/, // PromptPay mobile
+    '02003':/^\d{13}$/,       // PromptPay national ID
+    '02004':/^\d{15}$/,       // PromptPay E-Wallet ID
+    '03000':/^\d{6,32}$/     // Merchant QR; not enabled for E-Wallet purchases
+  };
   if(!receiver||typeof receiver.accountType!=='string'
-      || !/^(02001|02003|02004|03000|010\d{3})$/.test(receiver.accountType)
       ||typeof receiver.accountNumber!=='string'
-      ||receiver.accountNumber.length<6||receiver.accountNumber.length>32
-      ||!/^[0-9]+$/.test(receiver.accountNumber))throw Error('invalid_receiver');
+      ||typeof receiverPatterns[receiver.accountType]?.test!=='function'
+      ||!receiverPatterns[receiver.accountType].test(receiver.accountNumber)
+      ||receiver.accountType!=='02004')throw Error('invalid_receiver');
   return {
     checkDuplicate:true,
     checkReceiver:[{accountType:receiver.accountType,accountNumber:receiver.accountNumber,
