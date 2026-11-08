@@ -4,8 +4,8 @@ import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 
-const gamePath=fileURLToPath(new URL('./staging-game-v66.mjs',import.meta.url));
-const htmlPath=fileURLToPath(new URL('./staging-index-v66.html',import.meta.url));
+const gamePath=fileURLToPath(new URL('./staging-game-v67.mjs',import.meta.url));
+const htmlPath=fileURLToPath(new URL('./staging-index-v67.html',import.meta.url));
 const cssPath=fileURLToPath(new URL('./staging-style-v64.css',import.meta.url));
 const mainPath=fileURLToPath(new URL('./staging-main-v66.mjs',import.meta.url));
 const ledgerPath=fileURLToPath(new URL('./staging-ledger-v66.mjs',import.meta.url));
@@ -74,6 +74,18 @@ test('V66 buyer integration uses V2 routes exclusively and retains Stage 5 serve
  assert.ok(main.includes("reason:guard.reason"));
  assert.ok(main.includes('PAYMENT_REBUILD_V2_DISABLED'));
  assert.ok(ledger.includes('PaymentV2LiveCoordinator'));
- assert.ok(html.includes('game.js?v=payment-v2-66'));
- assert.ok(html.includes('style.css?v=payment-v2-66'));
+ assert.ok(html.includes('game.js?v=payment-v2-67'));
+ assert.ok(html.includes('style.css?v=payment-v2-67'));
+});
+
+test('verified and fulfilling V2 orders must reconcile without generating a second QR',()=>{
+ const begin=game.indexOf('async function buyProduct(sku){');
+ const end=game.indexOf('async function submitSlip(){',begin);
+ assert.ok(begin>=0&&end>begin);
+ const buy=game.slice(begin,end);
+ assert.ok(buy.includes("o.status==='verified'||o.status==='fulfilling'"));
+ assert.ok(buy.includes("$('payment-reconcile').hidden=false"));
+ assert.ok(buy.includes("o.status==='pending'&&Date.now()<o.expiresAt"));
+ assert.ok(buy.includes('await loadPaymentQr(o.id)'));
+ assert.ok(game.includes('order.status===\'fulfilling\''));
 });
