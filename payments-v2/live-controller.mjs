@@ -1,4 +1,4 @@
-// PREPARED ONLY. No live checkout while V2_STAGE5_LOCKED remains true.
+// Real owner-only checkout: requires Cloudflare canary binding, Google owner identity and provider merchant readiness.
 // Durable Object owns a distinct globally named payment-v2-paid-ledger-v1
 // instance. Never use the fake buyer-preview DO for real payment data.
 import {PaymentV2AtomicLedger} from './atomic-ledger.mjs';
@@ -24,12 +24,8 @@ export class PaymentV2LiveCoordinator {
   async create({owner,sku,uuid,vip}){
     const gate=this.gate(owner);if(!gate.ok)return gate;
     if(!['shield','win2','vip'].includes(sku))return {ok:false,reason:'unknown_product'};
-    if(this.env.PAYMENT_ROLLOUT==='canary'&&sku!=='shield')return {ok:false,reason:'owner_canary_shield_only'};
-    if(this.env.PAYMENT_ROLLOUT==='canary'){
-      const past=this.storage.sql.exec('SELECT COUNT(*) AS n FROM v2_paid_orders').toArray()[0];
-      const pending=this.storage.sql.exec("SELECT COUNT(*) AS n FROM v2_paid_orders WHERE uid=? AND sku='shield' AND status='pending' AND expires_at>?",owner.id,Date.now()).toArray()[0];
-      if(Number(past?.n||0)>=1&&Number(pending?.n||0)===0)return {ok:false,reason:'owner_canary_one_transfer_only'};
-    }
+    // All three server-priced products are available to the verified owner only.
+    // Public checkout remains disabled by liveCheckoutOpen().
     if(this.env.MERCHANT_ACCOUNT_TYPE!=='02004'||
       !validateEWalletId(this.env.MERCHANT_ACCOUNT_NUMBER))
       return {ok:false,reason:'receiver_unverified'};
@@ -69,7 +65,6 @@ export class PaymentV2LiveCoordinator {
     const row=this.ledger.getOrder({id,uid:owner.id});
     if(!row)return {ok:false,reason:'not_found'};
     if(row.status!=='pending'||Date.now()>=row.expires_at)return {ok:false,reason:'not_payable'};
-    if(this.env.PAYMENT_ROLLOUT==='canary'&&row.sku!=='shield')return {ok:false,reason:'owner_canary_shield_only'};
     if(this.env.MERCHANT_ACCOUNT_TYPE!=='02004'||!validateEWalletId(this.env.MERCHANT_ACCOUNT_NUMBER))
       return {ok:false,reason:'receiver_unverified'};
     return {ok:true,payload:buildEWalletPromptPayPayload({
@@ -79,7 +74,7 @@ export class PaymentV2LiveCoordinator {
   async verify({owner,id,bytes,vip,inventory}){
     const gate=this.gate(owner);if(!gate.ok)return gate;
     const v2row=this.ledger.getOrder({id,uid:owner.id});
-    if(this.env.PAYMENT_ROLLOUT==='canary'&&v2row?.sku!=='shield')return {ok:false,reason:'owner_canary_shield_only'};
+    if(!v2row)return {ok:false,reason:'not_found'};
     if(!(bytes instanceof Uint8Array)||bytes.byteLength<8||bytes.byteLength>4*1024*1024)
       return {ok:false,reason:'invalid_image'};
     try{
