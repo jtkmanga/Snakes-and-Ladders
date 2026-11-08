@@ -15,6 +15,13 @@ export class PaymentLedger extends DurableObject {
     const rows=this.ctx.storage.sql.exec('SELECT * FROM orders WHERE id=? AND uid=?',id,uid).toArray();
     return rows[0]||null;
   }
+  hasPreviousPaid(uid){
+    if(typeof uid!=='string'||!uid)return true;
+    const row=this.ctx.storage.sql.exec(
+      "SELECT COUNT(*) AS total FROM orders WHERE uid=? AND status IN ('verified','fulfilled')",uid
+    ).toArray()[0];
+    return Number(row?.total||0)>0;
+  }
   getRecent(uid){
     if(typeof uid!=='string'||!uid)return null;
     // Read-only recovery for the signed-in buyer; never return other users' orders.
