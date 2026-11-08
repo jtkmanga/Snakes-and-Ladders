@@ -5,6 +5,8 @@ export const PRODUCTS=Object.freeze({
   shield:{amount:10,description:'เกราะกันงู / 24 ชั่วโมง',kind:'item'}
 });
 export const ORDER_LIFETIME_MS=15*60*1000;
+// Preserve a 24-hour verification recovery window for money transferred before QR expiry.
+export const RECEIPT_RECOVERY_MS=24*60*60*1000;
 // Supply exact API origin from your Slip2Go dashboard; refuse unverified default hosts.
 export function providerEndpoint(env){
   const base=new URL(env.SLIP2GO_API_BASE_URL);
@@ -55,14 +57,14 @@ export function validateSlipResponse(answer,price){
     ?(senderBank&&/^[A-Za-z0-9]{1,16}$/.test(senderBank)?senderBank+':':'')+transRef
     :'ref:'+referenceId;
   const at=Date.parse(data.dateTime);
-  if(!Number.isFinite(at)||at>Date.now()+180000||at<Date.now()-20*60*1000)throw new Error('สลิปเกินเวลาที่กำหนด');
+  if(!Number.isFinite(at)||at>Date.now()+180000)throw new Error('วันเวลาสลิปไม่ถูกต้อง');
   // The payment ledger owns global duplicate protection; no raw slip QR is persisted.
   return {reference,amount:Number(data.amount),at};
 }
 export async function verifySlip(file,order,env){
   if(!paymentConfigured(env))throw Error('payment not configured');
   if(!file||typeof file.arrayBuffer!=='function'||file.size>4_000_000||file.size<100||!['image/png','image/jpeg'].includes(file.type))throw Error('รองรับเฉพาะรูป PNG/JPG ขนาดไม่เกิน 4MB');
-  if(Date.now()>order.expiresAt)throw Error('คำสั่งซื้อหมดอายุ');
+  if(Date.now()>order.createdAt+RECEIPT_RECOVERY_MS)throw Error('หมดเวลาส่งสลิป กรุณาติดต่อผู้ดูแล พร้อมเลขคำสั่งซื้อ');
   const checks={
     // The same Slip2Go shop may serve more than one game. Provider duplicate
     // checks protect against replay across projects; the DO ledger independently
@@ -78,6 +80,7 @@ export async function verifySlip(file,order,env){
   if(!response.ok)throw Error('Slip2Go ตรวจสอบไม่ได้');
   const validated=validateSlipResponse(answer,order.amount);
   if(validated.at<order.createdAt-120000)throw Error('โอนก่อนสร้างคำสั่งซื้อมากเกินไป');
+  if(validated.at>order.expiresAt+60000)throw Error('สลิปโอนหลังคำสั่งซื้อหมดอายุ กรุณาติดต่อผู้ดูแล');
   return validated;
 }
 export async function transferFingerprint(data){
