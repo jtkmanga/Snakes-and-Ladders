@@ -80,3 +80,20 @@ test('score backup exports paginated durable records including email and score, 
  assert.equal(page1.rows[0].email,'player00@example.org');
  assert.equal(board.leaders().length,7);
 });
+
+test('live player counts are unique by Google UID, scoped by board and expire after 90s',()=>{
+ const a=new AdminBoard(store().storage),b=new AdminBoard(store().storage),t=1000000;
+ assert.equal(a.onlineCount(t),0);
+ a.touch({id:'user-1',email:'one@example.org',name:'One',online:true},t);
+ a.touch({id:'user-1',email:'one@example.org',name:'One',online:true},t+5000); // two tabs, same UID
+ a.touch({id:'user-2',email:'two@example.org',name:'Two',online:true},t);
+ b.touch({id:'user-1',email:'one@example.org',name:'One',online:true},t);
+ assert.equal(a.onlineCount(t+5000),2);
+ assert.equal(b.onlineCount(t+5000),1);
+ assert.equal(a.onlineCount(t+90001),1); // uid 1 refreshed, uid 2 expired
+ assert.equal(a.onlineCount(t+95001),0);
+ assert.equal(a.players({now:t+95001}).online,0);
+ // Score award or an offline registration alone must not impersonate a live session.
+ a.award({id:'offline-user',name:'Offline',avatar:0,points:10},t+100000);
+ assert.equal(a.onlineCount(t+100000),0);
+});
