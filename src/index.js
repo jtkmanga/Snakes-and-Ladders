@@ -110,6 +110,10 @@ export default {
       ));
       return json({ok:true,nickname:result.profile.name});
     }
+    if(url.pathname==='/api/orders/recent'&&request.method==='GET'){
+      const recent=await ledger().getRecent(user.id);
+      return json({order:recent?publicOrder(recent):null});
+    }
     if(url.pathname==='/api/orders'&&request.method==='POST'){
       if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
       let body;try{body=await request.json();}catch{return json({error:'Bad JSON'},400);}
