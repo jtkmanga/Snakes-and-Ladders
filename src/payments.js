@@ -27,6 +27,19 @@ export function paymentReadiness(env){
 export function paymentConfigured(env){
   return paymentReadiness(env).ready;
 }
+export function paymentRolloutAllowed(env,user){
+  // Default safe mode is owner-only canary, even if payments become configured.
+  // Public rollout always requires an explicit PAYMENT_ROLLOUT='public' value.
+  if(!user?.id||!user?.email)return false;
+  if(env.PAYMENT_ROLLOUT==='public')return true;
+  if(env.PAYMENT_ROLLOUT&&env.PAYMENT_ROLLOUT!=='canary')return false;
+  const owner=String(env.ADMIN_EMAIL||'').trim().toLowerCase();
+  return Boolean(owner&&user.email.trim().toLowerCase()===owner);
+}
+export function paymentPublicEnabled(env){
+  return paymentConfigured(env)&&env.PAYMENT_ROLLOUT==='public';
+}
+
 export function validateSlipResponse(answer,price){
   // 200200 proves all requested merchant and amount checks passed.
   // Do NOT grant on 200000 ("Slip found") without these checks.
