@@ -1,3 +1,12 @@
+## 2026-11-08 15:32 ICT — persistent mock replay test and provider adapter (NO live payment)
+
+- On the admin page, the owner confirmed all six synthetic replay checks pass: mock valid, duplicate transfer, wrong amount, wrong receiver, unverified slip, expired order.
+- An isolated V2 Sandbox Durable Object saved one synthetic transaction and returned a record after the admin refreshed. This does not establish successful payment verification or replay prevention in a real cross-user concurrent payment race.
+- The live Worker remains a test-only stage. No real Slip2Go slip has been submitted and no real QR/paid order or VIP entitlement was created during this test.
+- New GitHub files `payments-v2/slip-image-adapter.mjs` and `payments-v2/slip-image-adapter.test.mjs` implement and test a **not-yet-deployed** Slip2Go image API adapter. It uses the pinned `POST /api/verify-slip/qr-image/info` endpoint, observed `Bearer` auth, multipart PNG/JPEG (4 MB max), precise E-Wallet `02004` receiver, `checkDuplicate: true`, `checkAmount: eq`, rejects `200000` (found is not paid), and only returns a fingerprinted event for `200200`. This adapter cannot grant VIP and refuses to operate outside safe disabled-payment mode.
+- CI on commit `ad3582851b7b346cc3a83ad7d557aa4b1edfe40f` succeeded for both push and pull request validation.
+- **Still to implement before Public**: real V2 pending-order lifecycle, authorized buyer-specific upload and verified provider call, atomic unique-fingerprint transaction ledger under concurrency, idempotent inventory/VIP grant, QR receiving-bank settlement confirmation, canary with approved actual payment and recovery logic, final security review and rollback policy. Do not treat a mock validation or code-only test as proof of live payment readiness.
+
 ## Verified provider access and remaining receiver-account gate — 2026-11-08
 
 The real owner-only comparison on the staging Worker returned:
