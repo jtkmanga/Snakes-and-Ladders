@@ -4,7 +4,7 @@ import {paymentConfigured,paymentReadiness,providerEndpoint,verifySlip} from '..
 
 const env=()=>({
  PAYMENTS_ENABLED:'false',SLIP2GO_SECRET:'mock-secret-never-real',
- SLIP2GO_API_BASE_URL:'https://api.slip2go.com/',
+ SLIP2GO_API_BASE_URL:'https://connect.slip2go.com/',
  MERCHANT_ACCOUNT_TYPE:'02001',MERCHANT_ACCOUNT_NUMBER:'0812345678',MERCHANT_DISPLAY_NAME:'Lucky Game'
 });
 const makeFile=()=>new Blob([new Uint8Array(200)],{type:'image/png'});
@@ -28,16 +28,16 @@ test('staging is fail-closed even with all other payment configuration available
 
 test('untrusted or malformed API origins cannot activate payment',()=>{
  const e=env();e.PAYMENTS_ENABLED='true';
- for(const url of ['http://api.slip2go.com/','https://api.slip2go.com.evil.example/',
+ for(const url of ['http://connect.slip2go.com/','https://connect.slip2go.com.evil.example/','https://api.slip2go.com/',
    'https://evil.example/','https://slip2go.com@evil.example/',
-   'https://api.slip2go.com:8443/','https://api.slip2go.com/path',
-   'https://api.slip2go.com/?mode=on']){
+   'https://connect.slip2go.com:8443/','https://connect.slip2go.com/path',
+   'https://connect.slip2go.com/?mode=on']){
    e.SLIP2GO_API_BASE_URL=url;
    assert.equal(paymentConfigured(e),false,url);
    assert.throws(()=>providerEndpoint(e),undefined,url);
  }
- e.SLIP2GO_API_BASE_URL='https://api.slip2go.com/';
- assert.equal(providerEndpoint(e),'https://api.slip2go.com/api/verify-slip/qr-image/info');
+ e.SLIP2GO_API_BASE_URL='https://connect.slip2go.com/';
+ assert.equal(providerEndpoint(e),'https://connect.slip2go.com/api/verify-slip/qr-image/info');
  assert.equal(paymentConfigured(e),true);
 });
 
@@ -46,7 +46,7 @@ test('mocked Slip2Go adapter sends correct multipart checks and exact server ord
  const original=globalThis.fetch;let calls=0;
  globalThis.fetch=async(url,opts)=>{
   calls++;
-  assert.equal(url,'https://api.slip2go.com/api/verify-slip/qr-image/info');
+  assert.equal(url,'https://connect.slip2go.com/api/verify-slip/qr-image/info');
   assert.equal(opts.method,'POST');
   assert.equal(opts.headers.Authorization,e.SLIP2GO_SECRET);
   assert.equal(opts.body.has('file'),true);
