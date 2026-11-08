@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import {PRODUCTS,ORDER_LIFETIME_MS} from './payments.js';
+import {PRODUCTS,ORDER_LIFETIME_MS,RECEIPT_RECOVERY_MS} from './payments.js';
 export class PaymentLedger extends DurableObject {
   constructor(ctx,env){
     super(ctx,env);
@@ -55,7 +55,7 @@ export class PaymentLedger extends DurableObject {
     const order=this.get(id,uid),now=Date.now();
     if(!order)return {ok:false,reason:'missing_order'};
     if(order.status==='verified'||order.status==='fulfilled')return {ok:true,alreadyPaid:true,order};
-    if(order.expires_at<=now)return {ok:false,reason:'order_expired'};
+    if(order.created_at+RECEIPT_RECOVERY_MS<=now)return {ok:false,reason:'verification_recovery_expired'};
     if(order.status==='verifying'&&order.lock_until>now)return {ok:false,reason:'verification_in_progress'};
     this.ctx.storage.sql.exec("UPDATE orders SET status='verifying',lock_until=? WHERE id=?",now+35_000,id);
     return {ok:true,order:this.get(id,uid)};
@@ -67,7 +67,7 @@ export class PaymentLedger extends DurableObject {
     const order=this.get(id,uid);
     if(!order||!hash||hash.length!==64)return {ok:false,reason:'invalid_order'};
     if(order.status==='fulfilled'||order.status==='verified')return {ok:order.tx_hash===hash,reason:'different_slip'};
-    if(order.status!=='verifying'||Date.now()>order.expires_at)return {ok:false,reason:'verification_expired'};
+    if(order.status!=='verifying'||Date.now()>order.created_at+RECEIPT_RECOVERY_MS)return {ok:false,reason:'verification_expired'};
     // A single SQL transaction prevents using the same verified bank transfer for any other order.
     let output;
     this.ctx.storage.transactionSync(()=>{
