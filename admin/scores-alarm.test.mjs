@@ -19,7 +19,8 @@ function make(){
   transactionSync(fn){db.exec('BEGIN IMMEDIATE');try{const r=fn();db.exec('COMMIT');return r}catch(e){db.exec('ROLLBACK');throw e}},
   kv:{get:k=>kvMap.get(k),put:(k,v)=>kvMap.set(k,v)}
  };
- const ctx={storage,setAlarm:async v=>{alarms.push(v)}};
+ storage.setAlarm=async v=>{alarms.push(v)};
+ const ctx={storage};
  return{board:new Score(ctx,{}),kvMap,alarms,db};
 }
 test('Free Score DO initializes Sunday midnight Bangkok alarm and winners are captured on alarm',async()=>{
