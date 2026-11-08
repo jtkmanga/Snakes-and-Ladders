@@ -4,12 +4,16 @@ import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 
-const gamePath=fileURLToPath(new URL('./staging-game-v62.mjs',import.meta.url));
-const htmlPath=fileURLToPath(new URL('./staging-index-v62.html',import.meta.url));
+const gamePath=fileURLToPath(new URL('./staging-game-v66.mjs',import.meta.url));
+const htmlPath=fileURLToPath(new URL('./staging-index-v66.html',import.meta.url));
 const cssPath=fileURLToPath(new URL('./staging-style-v64.css',import.meta.url));
+const mainPath=fileURLToPath(new URL('./staging-main-v66.mjs',import.meta.url));
+const ledgerPath=fileURLToPath(new URL('./staging-ledger-v66.mjs',import.meta.url));
 const game=readFileSync(gamePath,'utf8');
 const html=readFileSync(htmlPath,'utf8');
 const css=readFileSync(cssPath,'utf8');
+const main=readFileSync(mainPath,'utf8');
+const ledger=readFileSync(ledgerPath,'utf8');
 
 test('live staging game module must parse without freezing Google login',()=>{
  const result=spawnSync(process.execPath,['--check',gamePath],{encoding:'utf8',timeout:15000});
@@ -52,4 +56,24 @@ test('visible checkout panel is never unconditionally hidden by stylesheet',()=>
  assert.ok(css.includes('#payment-panel:not([hidden]){display:block!important;}'),'must show when open');
  assert.ok(!css.includes('#payment-panel,#payment-start-preview'),'must not hide checkout unconditionally');
  assert.ok(css.includes('[data-buy]'),'legacy real-money controls remain hidden');
+});
+
+test('deployed Worker main and DO ledgers must parse as modules',()=>{
+ for(const path of [mainPath,ledgerPath]){
+  const result=spawnSync(process.execPath,['--check',path],{encoding:'utf8',timeout:15000});
+  assert.equal(result.status,0,result.stderr||'node --check failed');
+ }
+});
+test('V66 buyer integration uses V2 routes exclusively and retains Stage 5 server guard',()=>{
+ assert.ok(game.includes('/api/payments/v2/live/orders'));
+ assert.ok(game.includes('/api/payments/v2/demo-orders'));
+ assert.ok(!game.includes("authorizedFetch('/api/orders',{method:'POST'"));
+ assert.ok(!game.includes('/api/orders/recent'));
+ assert.ok(main.includes('V2_STAGE5_ORDER_ROUTES'));
+ assert.ok(main.includes('liveCheckoutOpen(env,buyer)'));
+ assert.ok(main.includes("reason:guard.reason"));
+ assert.ok(main.includes('PAYMENT_REBUILD_V2_DISABLED'));
+ assert.ok(ledger.includes('PaymentV2LiveCoordinator'));
+ assert.ok(html.includes('game.js?v=payment-v2-66'));
+ assert.ok(html.includes('style.css?v=payment-v2-66'));
 });
