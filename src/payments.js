@@ -6,16 +6,26 @@ export const PRODUCTS=Object.freeze({
 });
 export const ORDER_LIFETIME_MS=15*60*1000;
 // Supply exact API origin from your Slip2Go dashboard; refuse unverified default hosts.
-function providerEndpoint(env){
+export function providerEndpoint(env){
   const base=new URL(env.SLIP2GO_API_BASE_URL);
   if(base.protocol!=='https:'||!(base.hostname==='slip2go.com'||base.hostname.endsWith('.slip2go.com'))||base.username||base.password||base.port||base.search||base.hash||base.pathname!=='/')throw Error('invalid Slip2Go API origin');
   return new URL('/api/verify-slip/qr-image/info',base).toString();
 }
+export function paymentReadiness(env){
+  const apiOriginProvided=typeof env.SLIP2GO_API_BASE_URL==='string'&&env.SLIP2GO_API_BASE_URL.length>0;
+  let validApiOrigin=false;
+  if(apiOriginProvided)try{providerEndpoint(env);validApiOrigin=true;}catch{}
+  const receiverConfigured=env.MERCHANT_ACCOUNT_TYPE==='02001'&&/^0[689]\d{8}$/.test(env.MERCHANT_ACCOUNT_NUMBER||'');
+  const secretConfigured=Boolean(env.SLIP2GO_SECRET);
+  const merchantConfigured=Boolean(env.MERCHANT_DISPLAY_NAME);
+  const enabled=env.PAYMENTS_ENABLED==='true';
+  // Only non-secret readiness flags are ever returned to a browser.
+  return {enabled,apiOriginConfigured:validApiOrigin,receiverConfigured,secretConfigured,merchantConfigured,
+    ready:enabled&&validApiOrigin&&receiverConfigured&&secretConfigured&&merchantConfigured};
+}
 // PromptPay QR checkout only. Do not require or publish a full account number.
 export function paymentConfigured(env){
-  return Boolean(env.PAYMENTS_ENABLED==='true'&&env.SLIP2GO_SECRET&&env.SLIP2GO_API_BASE_URL
-    &&env.MERCHANT_ACCOUNT_TYPE==='02001'&&/^0[689]\d{8}$/.test(env.MERCHANT_ACCOUNT_NUMBER||'')
-    &&env.MERCHANT_DISPLAY_NAME);
+  return paymentReadiness(env).ready;
 }
 export function validateSlipResponse(answer,price){
   // The provider's 200200 indicates the requested receiver/amount/duplicate checks succeeded.
