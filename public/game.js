@@ -364,6 +364,7 @@ async function authorizedFetch(path,options={}){
 }
 function updatePaymentPurchaseAccess(){
   const permitted=Boolean(publicConfig?.paymentsEnabled||serverMe?.canPurchase);
+  $('payment-preflight').hidden=!Boolean(serverMe?.canPaymentPreflight);
   $('payment-availability').textContent=publicConfig?.paymentsEnabled
     ?'🧾 เปิดชำระเงินจริงผ่าน Slip2Go'
     :serverMe?.canPurchase
@@ -456,6 +457,45 @@ async function loadPaymentQr(orderId){
   $('payment-qr-save').hidden=false;
   $('payment-qr-disabled').hidden=true;
 }
+const SLIP2GO_DIAGNOSTIC_LABELS=Object.freeze({
+  '401001':'Secret Key ไม่ถูกต้อง โปรดตรวจค่าใน Cloudflare',
+  '401002':'ไม่พบร้านค้าที่เชื่อมกับคีย์นี้',
+  '401003':'บัญชีถูกระงับ',
+  '401004':'แพ็กเกจ Slip2Go หมดอายุ',
+  '401005':'โทเคนไม่เพียงพอ',
+  '401006':'เครดิตไม่เพียงพอ',
+  '401007':'IP Whitelist ไม่อนุญาต Cloudflare',
+  '429000':'เรียก API บ่อยเกินไป',
+  '500500':'ระบบ Slip2Go หรือธนาคารขัดข้อง',
+  '500503':'Slip2Go กำลังปรับปรุงระบบ'
+});
+async function testPaymentConnection(){
+  if(!googleUser||!serverMe?.canPaymentPreflight)return;
+  const button=$('payment-preflight'),status=$('payment-preflight-result');
+  status.hidden=false;status.textContent='🔄 กำลังทดสอบ API ข้อมูลบัญชีแบบอ่านอย่างเดียว...';
+  button.disabled=true;
+  try{
+    const response=await authorizedFetch('/api/payment/preflight',{method:'GET'});
+    const data=await response.json();
+    if(!response.ok){
+      const d=data?.diagnostic||{};
+      const detail=SLIP2GO_DIAGNOSTIC_LABELS[d.providerCode]
+        ||({configuration:'คีย์หรือที่อยู่ API ยังไม่ครบ',timeout:'การเชื่อมต่อหมดเวลา',
+          network:'เชื่อมต่อ API ไม่ได้',non_json:'Slip2Go ส่งรูปแบบที่ไม่ใช่ JSON',
+          invalid_response:'Slip2Go ส่งข้อมูลไม่ตรงรูปแบบ',provider_http:'Slip2Go ปฏิเสธคำขอ',
+          provider_code:'Slip2Go ตอบกลับด้วยรหัสผิดพลาด'}[d.reason])
+        ||'การตรวจสอบไม่สำเร็จ';
+      const code=d.providerCode?' ['+d.providerCode+']':'';
+      throw Error(detail+code);
+    }
+    status.textContent='✅ เชื่อม Slip2Go สำเร็จ • ร้าน '+(data.shopName||'ไม่ระบุ')
+      +' • โทเคน '+(data.tokenRemaining??'—')
+      +' • QR quota '+(data.quotaQrRemaining??'—')
+      +' • '+(data.paymentsEnabled?'รับเงินจริงเปิดอยู่':'ระบบรับเงินจริงยังปิดอยู่');
+  }catch(e){
+    status.textContent='⚠️ '+(e?.message||'ทดสอบการเชื่อมต่อไม่สำเร็จ')+' • ยังไม่มีการโอนเงิน';
+  }finally{button.disabled=false;}
+}
 async function restoreLastPayment(){
   if(!googleUser){
     showModal('กรุณาเข้าสู่ระบบ','ต้องใช้บัญชี Google เดิมที่สร้างคำสั่งซื้อเพื่อดูสถานะ','🔐');
@@ -481,9 +521,11 @@ async function restoreLastPayment(){
     const order=data.order;
     if(!order){
       $('payment-order').textContent='ไม่พบคำสั่งซื้อเดิม';
-      $('payment-progress').textContent='ยังไม่มีรายการซื้อในช่วง 7 วันที่ผ่านมา';
+      $('payment-qr-disabled').textContent='🔒 ไม่มี QR เพราะยังไม่มีคำสั่งซื้อจริง';
+      $('payment-progress').textContent='ยังไม่มีรายการซื้อในช่วง 7 วันที่ผ่านมา • ใช้ปุ่มดูตัวอย่างชำระเงินเพื่อดูหน้าจอ โดยไม่ต้องโอนเงินจริง';
       return;
     }
+    $('payment-qr-disabled').textContent='🔒 QR จะปรากฏเฉพาะรายการที่ยังชำระได้เมื่อระบบเปิดรับเงินจริง';
     panel.dataset.order=order.id;
     $('payment-order').textContent=order.id;
     $('payment-amount').textContent=order.amount+' บาท';
@@ -656,6 +698,7 @@ for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('c
 $('vip-buy').addEventListener('click',()=>buyProduct('vip'));
 $('payment-preview').addEventListener('click',showPaymentPreview);
 $('payment-restore').addEventListener('click',restoreLastPayment);
+$('payment-preflight').addEventListener('click',testPaymentConnection);
 $('payment-submit').addEventListener('click',submitSlip);
 $('payment-reconcile').addEventListener('click',reconcilePayment);
 $('payment-close').addEventListener('click',()=>{
