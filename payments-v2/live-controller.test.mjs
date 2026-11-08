@@ -102,9 +102,11 @@ test('wrong amount cannot lead to VIP activation; cross-account replay cannot cl
  assert.equal(bad.ok,false);
  assert.equal(grants,0);
  const good=new PaymentV2LiveCoordinator(storage,env,{authorize:allowed,fetchFn:fakeProvider(100)});
- const aId='payv2-00000000-0000-4000-8000-000000000003';
+ const aCreated=await good.create({owner,sku:'vip',uuid:'00000000-0000-4000-8000-000000000003',vip});
+ assert.equal(aCreated.ok,true);
+ // The prior declined slip leaves the original pending order reusable by design.
+ const aId=aCreated.order.id;
  const bId='payv2-00000000-0000-4000-8000-000000000004';
- await good.create({owner,sku:'vip',uuid:'00000000-0000-4000-8000-000000000003',vip});
  const ownerB={id:'playerB',email:owner.email};
  await good.create({owner:ownerB,sku:'vip',uuid:'00000000-0000-4000-8000-000000000004',vip});
  assert.equal((await good.verify({owner,id:aId,bytes:samplePng(),vip,inventory:{}})).ok,true);
