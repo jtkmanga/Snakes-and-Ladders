@@ -27,7 +27,7 @@ test('Game script still parses, and purchase verification remains operational',(
  assert.ok(game.includes("$('vip-buy').addEventListener('click',()=>buyProduct('vip'))"));
 });
 test('Free/VIP matchmaking is isolated at Durable Object queue ID',()=>{
- assert.ok(worker.includes('const server=body?.server===\\'vip\\'?\\'vip\\':body?.server===\\'free\\'?\\'free\\':null;'));
- assert.ok(worker.includes('env.LOBBY.idFromName(\`lobby-\${server}-v1\`)'));
+ assert.ok(worker.includes("const server=body?.server==='vip'?'vip':body?.server==='free'?'free':null;"));
+ assert.ok(worker.includes("env.LOBBY.idFromName("+"\`lobby-\${server}-v1\`"+")"));
  assert.ok(worker.includes("if(server==='vip'&&!await vip().hasAccess(user.id))"));
 });
