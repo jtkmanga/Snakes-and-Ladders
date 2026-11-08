@@ -21,7 +21,7 @@ export class PaymentV2LiveCoordinator {
     this.ledger=new PaymentV2AtomicLedger(storage);
   }
   gate(owner){return this.authorize(this.env,owner);}
-  async create({owner,sku,uuid,vip}){
+  async create({owner,sku,uuid,vip,amountBaht}){
     const gate=this.gate(owner);if(!gate.ok)return gate;
     if(!['shield','win2','vip'].includes(sku))return {ok:false,reason:'unknown_product'};
     // All three server-priced products are available to the verified owner only.
@@ -29,7 +29,7 @@ export class PaymentV2LiveCoordinator {
     if(this.env.MERCHANT_ACCOUNT_TYPE!=='02004'||
       !validateEWalletId(this.env.MERCHANT_ACCOUNT_NUMBER))
       return {ok:false,reason:'receiver_unverified'};
-    const creation=this.ledger.createPending({uid:owner.id,sku,uuid});
+    const creation=this.ledger.createPending({uid:owner.id,sku,uuid,amountBaht});
     if(!creation.ok)return creation;
     if(sku==='vip'){
       if(!vip?.reserveForCheckout){
