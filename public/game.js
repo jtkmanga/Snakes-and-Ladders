@@ -362,6 +362,19 @@ async function authorizedFetch(path,options={}){
   const headers=new Headers(options.headers||{});headers.set('Authorization',`Bearer ${token}`);
   return fetch(path,{...options,headers,cache:'no-store'});
 }
+function updatePaymentPurchaseAccess(){
+  const permitted=Boolean(publicConfig?.paymentsEnabled||serverMe?.canPurchase);
+  $('payment-availability').textContent=publicConfig?.paymentsEnabled
+    ?'🧾 เปิดชำระเงินจริงผ่าน Slip2Go'
+    :serverMe?.canPurchase
+      ?'👑 โหมดทดสอบชำระเงินจริงสำหรับเจ้าของเกมเท่านั้น'
+      :'🔒 ยังไม่เปิดรับชำระเงินจริง';
+  for(const btn of document.querySelectorAll('[data-buy]'))btn.disabled=!permitted;
+  $('vip-buy').disabled=!permitted;
+  $('vip-buy').textContent=permitted
+    ?'👑 สมัคร VIP ฿100 / 30 วัน'
+    :'👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)';
+}
 async function initializeOnlineServices(){
   const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)return;
   publicConfig=await r.json();
@@ -390,15 +403,11 @@ async function initializeOnlineServices(){
         serverMe=null;
         applySavedNickname(store.getItem('snlGuestNickname')||'');
       }
+      updatePaymentPurchaseAccess();
       if(view==='lobby'){updateLobby();renderLeaderboard();}
     });
   }catch(e){$('auth-status').textContent='⚠️ โหลด Google Login ไม่สำเร็จ กรุณาลองอีกครั้ง';console.warn('Firebase client initialization failed');}
-  $('payment-availability').textContent=publicConfig.paymentsEnabled?'🧾 เปิดชำระเงินผ่านสลิป (ตรวจสอบจริง)':'🔒 ยังไม่เปิดรับชำระเงินจริง';
-  for(const btn of document.querySelectorAll('[data-buy]'))btn.disabled=!publicConfig.paymentsEnabled;
-  $('vip-buy').disabled=!publicConfig.paymentsEnabled;
-  $('vip-buy').textContent=publicConfig.paymentsEnabled
-    ?'👑 สมัคร VIP ฿100 / 30 วัน'
-    :'👑 สมัคร VIP ฿100 / 30 วัน (ยังไม่เปิดชำระเงินจริง)';
+  updatePaymentPurchaseAccess();
 }
 let activePaymentQrUrl=null;
 function clearPaymentQr(){
@@ -489,7 +498,7 @@ async function restoreLastPayment(){
       $('payment-progress').textContent='✅ ตรวจสลิปผ่านแล้ว แต่สิทธิ์ยังไม่ยืนยัน กดตรวจสถานะสิทธิ์ (ห้ามโอนซ้ำ)';
     }else if(expired){
       $('payment-progress').textContent='⚠️ คำสั่งซื้อเก่าหมดเวลาแล้ว หากโอนไปแล้วโปรดติดต่อผู้ดูแลพร้อมหมายเลขคำสั่งซื้อ อย่าโอนซ้ำ';
-    }else if(!publicConfig?.paymentsEnabled){
+    }else if(!publicConfig?.paymentsEnabled&&!serverMe?.canPurchase){
       $('payment-progress').textContent='🔒 ระบบชำระเงินจริงปิดอยู่ ไม่สามารถแสดง QR หรือส่งสลิปใหม่ได้';
     }else{
       $('payment-slip').disabled=false;
@@ -520,7 +529,7 @@ function showPaymentPreview(){
 async function buyProduct(sku){
   $('payment-slip').disabled=false;
   $('payment-submit').disabled=false;
-  if(!publicConfig?.paymentsEnabled){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
+  if(!publicConfig?.paymentsEnabled&&!serverMe?.canPurchase){showModal('ยังไม่เปิดรับชำระเงินจริง','ระบบต้องตั้งค่า Slip2Go และบัญชีรับเงินที่ตรวจสอบแล้วก่อน','🔒');return;}
   if(!googleUser){showModal('ต้องล็อกอินก่อนซื้อ','โปรดเข้าสู่ระบบด้วย Google แล้วกลับมาที่ร้านค้าอีกครั้ง','🔐');return;}
   const panel=$('payment-panel');panel.hidden=false;
   clearPaymentQr();
