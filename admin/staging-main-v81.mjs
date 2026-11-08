@@ -930,6 +930,7 @@ export class GameRoom extends DurableObject {
     // Check moderation on a roll: a banned account cannot continue playing.
     const access=await this.env.ITEMS.get(this.env.ITEMS.idFromName('inventory-v1')).gameAccess({uid:pid,server:game.server,ignoreMaintenance:true});
     if(!access.allowed){try{ws.close(4003,'Access revoked');}catch{}return;}
+    if(Date.now()>=game.turnEndsAt){await this.timeout(game);return;}
     if(game.players[game.current]?.id!==pid)return;
     const dice=randomInt(6)+1;
     game.noRollTurns=0;
@@ -1108,6 +1109,12 @@ export class Scores extends DurableObject {
     const result=b.reset({at:Date.now(),mode:'manual',actor,server});
     this.ctx.storage.kv.put('leaders',[]);
     return {...result,nextReset:this.ctx.storage.kv.get('admin:nextReset')};
+  }
+  async adminExport({server,limit=250,offset=0,actor}){
+    const b=await this.ensureBoard(server);
+    const result=b.exportPage({limit,offset});
+    if(offset===0&&typeof actor==='string')b.audit(actor,'export_scores',null,server+':'+result.total);
+    return {ok:true,server,at:Date.now(),nextReset:this.ctx.storage.kv.get('admin:nextReset'),...result};
   }
   async adminHistory({server}){
     const b=await this.ensureBoard(server);
