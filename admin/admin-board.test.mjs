@@ -65,3 +65,18 @@ test('SQL award deduplication is atomic across retries and score reset',()=>{
  assert.equal(board.creditOnce({...opts,awardId:'award:win:room-00000000-0000-4000-8000-000000000002'},1200),true);
  assert.equal(board.leaders()[0].score,10);
 });
+
+test('score backup exports paginated durable records including email and score, without changing state',()=>{
+ const {storage}=store(),board=new AdminBoard(storage);
+ for(let n=0;n<7;n++){
+   const id='player'+String(n).padStart(2,'0');
+   board.touch({id,email:id+'@example.org',name:'P'+n,online:true},1000+n);
+   board.award({id,name:'P'+n,avatar:0,points:10},1000+n);
+ }
+ const page1=board.exportPage({limit:3,offset:0}),page2=board.exportPage({limit:3,offset:3}),page3=board.exportPage({limit:3,offset:6});
+ assert.equal(page1.total,7);
+ assert.deepEqual([page1.rows.length,page2.rows.length,page3.rows.length],[3,3,1]);
+ assert.equal(new Set([...page1.rows,...page2.rows,...page3.rows].map(r=>r.uid)).size,7);
+ assert.equal(page1.rows[0].email,'player00@example.org');
+ assert.equal(board.leaders().length,7);
+});
