@@ -1,3 +1,17 @@
+## 8 November 2026 — V75 QR blocker diagnosed and corrected
+
+User-reported VIP checkout displayed "Slip2Go merchant connection unavailable — do not transfer funds", no QR. Verified deployed V74 main route executes preflightBeforeMoney(env) before creating orders; this calls slip2goAccountInfo(). Deployed slip2go-admin.js incorrectly required SLIP2GO_SECRET (old V1 name), but the staging Worker actually binds only SLIP2GO_V2_SECRET (Secret Text), so account-info preflight always failed in configuration before connecting to the provider.
+
+V75 fix on staging: replace old admin account-check credential reference with SLIP2GO_V2_SECRET and always send a correctly normalized Bearer authorization header (do not expose or print the secret). Keep strict merchant name, package expiry, token/credit quota and fail-closed preflight before creating any payable order or QR. Add owner-only sanitized failure metadata (reason, safe provider code/status) to help distinguish a provider 401001/401002 rejection from an internal connection problem. No account number or bearer token appears in errors.
+
+Cloudflare V75 verified deployed 100%; environment unchanged (PAYMENTS_ENABLED=true, PAYMENT_ROLLOUT=canary, PAYMENT_V2_OWNER_CANARY=explicitly_approved), still Google owner only. Backend real checkout supports VIP 100, shield 10 and win2 20; V74 mobile payment modal unchanged. Source snapshots: staging-slip2go-admin-v75.mjs, staging-main-v75.mjs; synchronized payment-canary.js, payments.js and slip2go-admin.js. Dedicated mock-provider regression tests: slip2go-merchant-v75.test.mjs. GitHub Actions passed.
+
+Important distinction: mocked/structural tests and Cloudflare deployment verification do not establish live Slip2Go connection or bank payment success. Ask owner to reload and try **creating a QR only**, without bank transfer until they have independently checked the receiver and amount. If QR still fails, use the sanitized provider diagnostic displayed to diagnose it; do not bypass merchant preflight.
+
+Game link: https://snakes-and-ladders-staging.jtkmanga.workers.dev/?v=75
+
+---
+
 ## 8 November 2026 — V74 owner-only real payment popup for 3 products
 
 Owner request: tapping VIP or item Buy must immediately open a modal with a real server order and QR, not a simulated payment. This request is now implemented in Cloudflare Staging Worker V74. The payment dialog opens instantly; QR appears only after the authenticated order creation and real provider merchant-readiness checks succeed.
