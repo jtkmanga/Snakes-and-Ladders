@@ -4,6 +4,7 @@ const fmtTime=value=>value?new Date(Number(value)).toLocaleString('th-TH',{timeZ
 const esc=(v)=>v==null||v===''?'—':String(v);
 let permitted=false,server='free',historyServer='free',offset=0,onlineOnly=false,editing=null,refreshing=false;
 let tick=null,toastTimer=null;
+let bansOffset=0,vipTxnOffset=0,exporting=false;
 const status=(txt,ok=false)=>{$('connection').textContent=txt;$('connection').classList.toggle('ok',ok);};
 const toast=(txt,error=false)=>{$('toast').textContent=txt;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6000)};
 async function api(path,{method='GET',body}={}){
@@ -26,10 +27,14 @@ function playerRow(p){
  info.append(n,email);
  const score=el('td','num',Number(p.score||0).toLocaleString('th-TH'));
  const state=el('td');
- state.append(el('span','pill'+(p.online?' online':''),p.online?'● ออนไลน์':'ออฟไลน์'));
+ state.append(el('span','pill'+(p.online?' online':''),p.banned?'⛔ ถูกแบน':p.online?'● ออนไลน์':'ออฟไลน์'));
+ if(p.banned)state.firstChild.classList.remove('online');
  const actions=el('td'),btn=el('button','edit-btn','แก้ไข');
  btn.type='button';btn.addEventListener('click',()=>openEdit(p));
- actions.append(btn);tr.append(info,score,state,actions);return tr;
+ const ban=el('button','edit-btn',p.banned?'ปลดแบน':'ระงับ');
+ ban.type='button';ban.addEventListener('click',()=>p.banned?unbanPlayer(p.uid):prepareBan(p.uid));
+ const group=el('div','moderation-actions');group.append(btn,ban);actions.append(group);
+ tr.append(info,score,state,actions);return tr;
 }
 async function refreshPlayers({append=false}={}){
  if(!permitted||editing)return;
@@ -92,7 +97,7 @@ async function refreshPrices(){
 async function reload(){
  if(!permitted||refreshing||editing||document.visibilityState!=='visible')return;
  refreshing=true;
- const result=await Promise.allSettled([refreshOverview(),refreshPlayers(),refreshAudit()]);
+ const result=await Promise.allSettled([refreshOverview(),refreshPlayers(),refreshAudit(),refreshControlStatus()]);
  const bad=result.find(x=>x.status==='rejected');
  if(bad)toast('โหลดข้อมูลสดไม่สำเร็จ: '+bad.reason.message,true);
  refreshing=false;
@@ -143,7 +148,7 @@ async function checkLogin(user){
   if(!response.admin)throw Error('ไม่มีสิทธิ์ผู้ดูแล');
   permitted=true;$('auth-box').hidden=true;$('dashboard').hidden=false;
   status('● ผู้ดูแลที่ได้รับอนุญาต',true);
-  const settled=await Promise.allSettled([refreshOverview(),refreshPlayers(),refreshPrices(),refreshHistory(),refreshAudit()]);
+  const settled=await Promise.allSettled([refreshOverview(),refreshPlayers(),refreshPrices(),refreshHistory(),refreshAudit(),refreshControlStatus(),refreshBans(),refreshVipTransactions()]);
   const failed=settled.find(r=>r.status==='rejected');
   if(failed)toast('โหลดบางส่วนไม่สำเร็จ: '+failed.reason.message,true);
   if(!tick)tick=setInterval(reload,15000);
@@ -152,6 +157,143 @@ async function checkLogin(user){
   $('auth-note').textContent=e.message;$('sign-in').hidden=true;
  }
 }
+
+function prepareBan(uid){
+ $('ban-uid').value=uid;
+ $('ban-reason').focus();
+ $('ban-form').scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function unbanPlayer(uid){
+ if(!window.confirm('ยืนยันปลดแบนผู้เล่น '+uid+' ?'))return;
+ try{await api('/api/admin/control/ban',{method:'POST',body:{uid,banned:false}});
+  toast('ปลดแบนบัญชีสำเร็จ');await Promise.allSettled([refreshBans(),refreshPlayers()]);
+ }catch(e){toast('ปลดแบนไม่สำเร็จ: '+e.message,true)}
+}
+async function refreshControlStatus(){
+ if(!permitted)return;
+ const response=await api('/api/admin/control/status');
+ for(const key of ['free','vip'])$('maintenance-'+key).checked=response.maintenance?.[key]?.enabled===true;
+ $('maintenance-status').textContent='บัญชีที่ถูกแบน '+(response.bannedTotal||0)+' คน • ตั้งค่าเซิร์ฟเวอร์แยกอิสระ';
+}
+async function refreshBans({append=false}={}){
+ if(!permitted)return;
+ const start=append?bansOffset:0;
+ const response=await api('/api/admin/control/bans?offset='+start+'&limit=50');
+ if(!append){bansOffset=0;$('ban-list').replaceChildren();}
+ for(const b of response.bans||[]){
+  const item=el('div','history-item ban-entry');
+  const info=el('div','ban-text');
+  info.append(el('strong',null,b.uid),el('div',null,'เหตุผล: '+b.reason),el('small','muted',fmtTime(b.at)+' • '+b.actor));
+  const unban=el('button','secondary small','ปลดแบน');
+  unban.type='button';unban.addEventListener('click',()=>unbanPlayer(b.uid));
+  item.append(info,unban);$('ban-list').append(item);
+ }
+ bansOffset+=(response.bans||[]).length;
+ $('bans-count').textContent=bansOffset+' / '+response.total+' รายการ';
+ $('more-bans').hidden=bansOffset>=response.total;
+ if(response.total===0)$('ban-list').append(el('p','muted','ยังไม่มีบัญชีที่ถูกแบน'));
+}
+async function toggleMaintenance(which,enabled){
+ const input=$('maintenance-'+which);
+ if(!window.confirm((enabled?'เปิด':'ปิด')+'โหมดปรับปรุง '+which.toUpperCase()+' ?'+(enabled?' ระบบจะหยุดจับคู่ห้องใหม่ แต่เกมที่เริ่มแล้วเล่นต่อได้':''))){
+  input.checked=!enabled;return;
+ }
+ input.disabled=true;
+ try{
+  const response=await api('/api/admin/control/maintenance',{method:'POST',body:{server:which,enabled,note:''}});
+  if(!response.ok)throw Error(response.reason||'ไม่สำเร็จ');
+  toast((enabled?'เปิด':'ปิด')+'โหมดปรับปรุง '+which.toUpperCase()+' สำเร็จ');
+ }catch(e){input.checked=!enabled;toast('เปลี่ยนโหมดไม่สำเร็จ: '+e.message,true)}
+ finally{input.disabled=false;refreshControlStatus().catch(()=>{})}
+}
+function vipTransactionRow(entry){
+ const tr=document.createElement('tr');
+ const identity=el('td');
+ identity.append(el('strong',null,entry.order||'—'),el('small',null,'ผู้ซื้อ: '+(entry.buyer||'—')));
+ const amount=el('td','num',(Number(entry.amountBaht||0).toLocaleString('th-TH'))+' ฿');
+ const state=el('td');
+ const labels={pending:'รอชำระ',verifying:'กำลังตรวจ',verified:'ตรวจผ่าน',fulfilling:'กำลังให้สิทธิ์',fulfilled:'ให้สิทธิ์แล้ว',cancelled:'ยกเลิก'};
+ state.append(el('span','pill'+(entry.status==='fulfilled'?' online':''),labels[entry.status]||entry.status));
+ const at=el('td',null,fmtTime(entry.createdAt));
+ tr.append(identity,amount,state,at);return tr;
+}
+async function refreshVipTransactions({append=false}={}){
+ if(!permitted)return;
+ const start=append?vipTxnOffset:0;
+ const response=await api('/api/admin/payments/vip?offset='+start+'&limit=50');
+ if(!append){vipTxnOffset=0;$('vip-transactions-body').replaceChildren();}
+ for(const entry of response.orders||[])$('vip-transactions-body').append(vipTransactionRow(entry));
+ vipTxnOffset+=(response.orders||[]).length;
+ $('vip-transactions-count').textContent=vipTxnOffset+' / '+response.total+' รายการ • เฉพาะ Payment V2';
+ $('more-vip-transactions').hidden=vipTxnOffset>=response.total;
+ if(response.total===0){
+  const tr=el('tr'),td=el('td',null,'ยังไม่มีคำสั่งซื้อ VIP ใน Payment V2');td.colSpan=4;tr.append(td);$('vip-transactions-body').append(tr);
+ }
+}
+const csvCell=value=>{
+ let text=String(value??'');
+ if(/^[=+\-@\t\r\n]/.test(text))text="'"+text;
+ return '"'+text.replaceAll('"','""')+'"';
+};
+function downloadAdminFile(filename,content,mime){
+ const blob=new Blob([content],{type:mime}),url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+async function exportScores(which,format){
+ if(exporting||!permitted)return;
+ exporting=true;
+ const controls=['free-csv','vip-csv','free-json','vip-json'].map(k=>$('export-'+k));
+ controls.forEach(x=>x.disabled=true);
+ try{
+  const records=[];let offset=0,total=0;
+  do{
+   const page=await api('/api/admin/board/export?server='+which+'&offset='+offset+'&limit=250');
+   if(page.server!==which||!Array.isArray(page.rows))throw Error('ข้อมูลส่งออกไม่ถูกต้อง');
+   if(offset===0)total=Number(page.total||0);
+   if(page.rows.length===0&&offset<total)throw Error('ข้อมูลส่งออกไม่ครบ');
+   records.push(...page.rows);offset+=page.rows.length;
+   $('export-status').textContent='กำลังสำรอง '+which.toUpperCase()+' '+offset+' / '+total+' รายการ';
+   if(offset>100000)throw Error('ข้อมูลเกินขนาดที่รองรับในหนึ่งไฟล์');
+  }while(offset<total);
+  const snapshotTime=new Date().toISOString();
+  const date=snapshotTime.slice(0,10),filename='snl-scores-'+which+'-'+date+'.'+format;
+  if(format==='csv'){
+   const headings=['server','uid','email','name','avatar','score','last_seen','joined_at','updated_at'];
+   const rows=records.map(p=>[which,p.uid,p.email,p.name,p.avatar,p.score,p.lastSeen,p.joinedAt,p.updatedAt].map(csvCell).join(','));
+   downloadAdminFile(filename,'\uFEFF'+headings.join(',')+'\r\n'+rows.join('\r\n'),'text/csv;charset=utf-8');
+  }else{
+   const winners=await api('/api/admin/board/history?server='+which);
+   downloadAdminFile(filename,JSON.stringify({format:'snl-score-backup-v1',server:which,createdAt:snapshotTime,total,players:records,resetHistory:winners.history||[]},null,2),'application/json;charset=utf-8');
+  }
+  $('export-status').textContent='ดาวน์โหลด '+format.toUpperCase()+' '+records.length+' รายการเรียบร้อย • เก็บไฟล์เป็นความลับ';
+  toast('สร้างไฟล์สำรอง '+which.toUpperCase()+' สำเร็จ');
+ }catch(e){toast('ส่งออกไม่สำเร็จ: '+e.message,true);$('export-status').textContent='ส่งออกไม่สำเร็จ กรุณาลองใหม่'}
+ finally{exporting=false;controls.forEach(x=>x.disabled=false)}
+}
+
+$('ban-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const uid=$('ban-uid').value.trim(),reason=$('ban-reason').value.trim();
+ if(!uid||!reason)return toast('กรุณากรอก UID และเหตุผล',true);
+ if(!window.confirm('ยืนยันแบน UID '+uid+' ทั้ง Free และ VIP?'))return;
+ $('ban-submit').disabled=true;
+ try{
+  const result=await api('/api/admin/control/ban',{method:'POST',body:{uid,banned:true,reason}});
+  if(!result.ok)throw Error(result.reason||'ไม่สำเร็จ');
+  $('ban-uid').value='';$('ban-reason').value='';
+  toast('ระงับบัญชีสำเร็จ');await Promise.allSettled([refreshBans(),refreshPlayers(),refreshControlStatus()]);
+ }catch(e){toast('แบนไม่สำเร็จ: '+e.message,true)}
+ finally{$('ban-submit').disabled=false}
+});
+$('refresh-bans').addEventListener('click',()=>refreshBans().catch(e=>toast(e.message,true)));
+$('more-bans').addEventListener('click',()=>refreshBans({append:true}).catch(e=>toast(e.message,true)));
+for(const key of ['free','vip'])$('maintenance-'+key).addEventListener('change',e=>toggleMaintenance(key,e.target.checked));
+$('refresh-vip-transactions').addEventListener('click',()=>refreshVipTransactions().catch(e=>toast(e.message,true)));
+$('more-vip-transactions').addEventListener('click',()=>refreshVipTransactions({append:true}).catch(e=>toast(e.message,true)));
+for(const which of ['free','vip'])for(const format of ['csv','json'])
+ $('export-'+which+'-'+format).addEventListener('click',()=>exportScores(which,format));
+
 $('sign-in').addEventListener('click',async()=>{try{await auth.signIn()}catch(e){toast('เข้าสู่ระบบ Google ไม่สำเร็จ: '+e.message,true)}});
 $('sign-out').addEventListener('click',async()=>{await auth.logOut();permitted=false;clearInterval(tick);tick=null});
 $('refresh').addEventListener('click',()=>reload().catch(e=>toast(e.message,true)));
