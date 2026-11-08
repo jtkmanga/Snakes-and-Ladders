@@ -22,7 +22,7 @@ export function validateSlipImage(bytes){
 export function prepareSlipVerification({env,order,receiver,bytes,mode='synthetic'}){
   if(order?.version!==2||!['pending','verifying'].includes(order.status))throw Error('not_pending_order');
   if(!providerStageReady(env,mode))
-    throw Error('provider_stage_not_authorized');
+    throw Error(mode==='synthetic'?'safe_mode_required':'provider_stage_not_authorized');
   // A staging-only adapter. This must not authorize checkout or grant items.
   // Never print, log, or return the request object to the browser.
   const secret=env?.SLIP2GO_V2_SECRET;
