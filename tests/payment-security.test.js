@@ -14,20 +14,22 @@ test('payments always start disabled and require exact merchant config',()=>{
   assert.equal(paymentConfigured({PAYMENTS_ENABLED:'true',SLIP2GO_SECRET:'test',SLIP2GO_API_BASE_URL:'https://connect.slip2go.com/',MERCHANT_ACCOUNT_TYPE:'02001',MERCHANT_ACCOUNT_NUMBER:'081234567',MERCHANT_DISPLAY_NAME:'Test'}),false);
   assert.equal(paymentConfigured({PAYMENTS_ENABLED:'true',SLIP2GO_SECRET:'test',SLIP2GO_API_BASE_URL:'https://connect.slip2go.com/',MERCHANT_ACCOUNT_TYPE:'01004',MERCHANT_ACCOUNT_NUMBER:'0812345678',MERCHANT_DISPLAY_NAME:'Test'}),false);
 });
-test('verified transfer must have provider success code, QR, reference, amount and recent timestamp',()=>{
+test('verified transfer must have provider success, unique bank reference, amount and recent timestamp',()=>{
   assert.equal(validateSlipResponse(good(),100).amount,100);
   for(const code of ['200000','200401','200402','200501','200500','401005']){
     assert.throws(()=>validateSlipResponse({...good(),code},100));
   }
   assert.throws(()=>validateSlipResponse(good(),20));
-  assert.throws(()=>validateSlipResponse({...good(),data:{...good().data,decode:''}},100));
+  assert.equal(validateSlipResponse({...good(),data:{...good().data,decode:''}},100).reference,'bank-transaction-12345');
+  assert.throws(()=>validateSlipResponse({...good(),data:{...good().data,transRef:'',referenceId:''}},100));
   assert.throws(()=>validateSlipResponse({...good(),data:{...good().data,dateTime:new Date(Date.now()-60*60*1000).toISOString()}},100));
 });
-test('stable one-way transaction fingerprint changes with bank reference or QR',async()=>{
-  const a=await transferFingerprint({reference:'abc',qr:'1234567890'});
+test('transfer fingerprint is stable by transaction reference even if a slip image changes',async()=>{
+  const a=await transferFingerprint({reference:'004:bank-transaction-12345',qr:'001122334455'});
   assert.equal(a.length,64);
-  assert.equal(a,await transferFingerprint({reference:'abc',qr:'1234567890'}));
-  assert.notEqual(a,await transferFingerprint({reference:'abc',qr:'ABCDEFGHIJ'}));
+  assert.equal(a,await transferFingerprint({reference:'004:bank-transaction-12345',qr:'different-png'}));
+  assert.notEqual(a,await transferFingerprint({reference:'004:bank-transaction-99999'}));
+  await assert.rejects(transferFingerprint({reference:'a'}));
 });
 test('invalid/unsigned/HS256 Firebase ID tokens are rejected',async()=>{
   await assert.rejects(verifyFirebaseToken('x.y.z','testproject'));
