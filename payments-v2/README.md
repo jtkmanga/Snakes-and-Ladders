@@ -1,6 +1,6 @@
 # Snakes & Ladders — Payment V2 (STAGING / NOT LIVE)
 
-**Updated 8 November 2026.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
+**Updated 8 November 2026 — Worker V59.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
 
 ## What is verified in staging
 
@@ -10,7 +10,7 @@
 - Thai QR E-Wallet data structure and CRC for 10 and 100 THB passed *in-memory* checks; no payable QR was issued.
 - Admin-only sandbox test orders for shield (10 THB), win2 (20 THB), and VIP 30 days (100 THB) were written and retrieved using a **separate** Durable Object instance `payment-v2-sandbox-only`.
 - Six mock validation cases and a *synthetic* replay key survived storage and were checked on the admin page. These results are NOT evidence of a bank transaction or live provider slip check.
-- The current **staging Worker is V57** with an **admin-only atomic SQLite smoke test** mounted on a distinct Durable Object ID `payment-v2-atomic-sandbox-v1`; its route is `/api/payments/v2/atomic-smoke`. This route accepts synthetic test inputs generated on the server only and cannot call Slip2Go, issue payable QR, or activate VIP. The real-slip adapter and delivery coordinator **remain GitHub-only**, and the actual buyer-facing paid-order workflow is still disabled.
+- The current **staging Worker is V59**. Atomic SQLite smoke testing is mounted on the admin-only `/api/payments/v2/atomic-smoke` route and the separate `payment-v2-atomic-sandbox-v1` DO instance. The owner submitted the test and after refresh confirmed 6/6 green checks and a persisted history record (2026-11-08 ~17:53 ICT). V59 adds the admin-only `/api/payments/v2/e2e-mock` route with a DIFFERENT isolated DO instance `payment-v2-e2e-mock-v1`; it runs a synthetic fake-Slip2Go 200200/200000 response through the V2 adapter and atomic ledger and a **fake** VIP receipt table, including retry after a simulated crash. It cannot contact real Slip2Go, create payable QR, activate real VIP or modify live Inventory. The real buyer-facing paid-order and real-slip upload routes are still disabled. The owner has NOT YET run the V59 E2E mock button.
 
 ## Current reviewed source files — NOT connected to live checkout
 
@@ -45,7 +45,8 @@ node --test payments-v2/*.test.mjs
 
 ## Future integration (not yet live)
 
-- The staging Worker V57 provides owner-only buttons **🧪 ทดสอบฐานข้อมูลอะตอมมิก (จำลอง)** and **📚 ดูประวัติทดสอบอะตอมมิก** on `/admin?v=57`. The tests run against a distinct `payment-v2-atomic-sandbox-v1` instance without real QR or entitlements. **Owner must still run the button and verify results; deploy success alone is not a passing smoke test.**
+- The staging Worker V59 has **🧪 ทดสอบฐานข้อมูลอะตอมมิก (จำลอง)** and **📚 ดูประวัติทดสอบอะตอมมิก**; the owner confirmed success after a page refresh.
+- New buttons **🧪 ทดสอบตรวจสลิป→VIP จำลอง (ไม่โอนเงินจริง)** and **📚 ดูประวัติทดสอบครบวงจร** are available at `/admin?v=59`. These use entirely fabricated Slip2Go responses and a mock VIP receipt table in `payment-v2-e2e-mock-v1`, not a real payment or a real user entitlement. The owner must run them and inspect the result before proceeding to real provider integration.
 - Only after tests, implement authenticated buyer endpoints for pending V2 orders, QR display and slip upload; wire server coordinator to provider and dedicated global ledger; use existing VIP/Inventory idempotent methods.
 - Stage canary first with the owner's explicit approval for a real transfer, then review before public rollout.
 - Keep the V1 payment endpoints quarantined, and retain all old player privileges.
