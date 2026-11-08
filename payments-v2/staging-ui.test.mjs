@@ -6,8 +6,10 @@ import {fileURLToPath} from 'node:url';
 
 const gamePath=fileURLToPath(new URL('./staging-game-v62.mjs',import.meta.url));
 const htmlPath=fileURLToPath(new URL('./staging-index-v62.html',import.meta.url));
+const cssPath=fileURLToPath(new URL('./staging-style-v64.css',import.meta.url));
 const game=readFileSync(gamePath,'utf8');
 const html=readFileSync(htmlPath,'utf8');
+const css=readFileSync(cssPath,'utf8');
 
 test('live staging game module must parse without freezing Google login',()=>{
  const result=spawnSync(process.execPath,['--check',gamePath],{encoding:'utf8',timeout:15000});
@@ -43,4 +45,11 @@ test('demo statuses are visibly distinct from real VIP entitlements',()=>{
  assert.ok(game.includes('activeDemoBuyerV2'));
  assert.ok(game.includes('sim_fulfilled'));
  assert.ok(game.includes('ต้องเข้าสู่ระบบ Google'));
+});
+
+test('visible checkout panel is never unconditionally hidden by stylesheet',()=>{
+ assert.ok(css.includes('#payment-panel[hidden]{display:none!important}'),'must hide while closed');
+ assert.ok(css.includes('#payment-panel:not([hidden]){display:block!important;}'),'must show when open');
+ assert.ok(!css.includes('#payment-panel,#payment-start-preview'),'must not hide checkout unconditionally');
+ assert.ok(css.includes('[data-buy]'),'legacy real-money controls remain hidden');
 });
