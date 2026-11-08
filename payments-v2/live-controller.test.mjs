@@ -45,21 +45,27 @@ test('owner canary requires secret third flag and Google owner even if other fla
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM v2_paid_orders').get().n,0);
 });
 
-test('owner has one genuine canary SKU: shield 10 THB; no 20/100 BAHT QR',async()=>{
+test('owner can create three real purchase types with correct server-side prices and payable QR',async()=>{
  const {storage}=makeStorage();
  const c=new PaymentV2LiveCoordinator(storage,env);
- assert.equal((await c.create({owner,sku:'vip',uuid:uuid1})).reason,'owner_canary_shield_only');
- assert.equal((await c.create({owner,sku:'win2',uuid:uuid1})).reason,'owner_canary_shield_only');
- const order=await c.create({owner,sku:'shield',uuid:uuid1});
- assert.equal(order.ok,true);
- assert.equal(order.order.amountBaht,10);
- assert.equal(order.order.status,'pending');
- assert.equal(c.qrPayload({owner,id:id1}).ok,true);
- assert.ok(c.qrPayload({owner,id:id1}).payload.includes('A000000677010111'));
- const duplicateCreate=await c.create({owner,sku:'shield',uuid:'00000000-0000-4000-8000-000000000002'});
- assert.equal(duplicateCreate.reused,true);
- assert.equal(duplicateCreate.order.id,id1);
- assert.equal((await c.create({owner:userB,sku:'shield',uuid:'00000000-0000-4000-8000-000000000003'})).reason,'owner_canary_one_transfer_only');
+ const vip={reserveForCheckout:async()=>({ok:true})};
+ for(const [sku,amount,uuid] of [
+  ['shield',10,'00000000-0000-4000-8000-000000000001'],
+  ['win2',20,'00000000-0000-4000-8000-000000000002'],
+  ['vip',100,'00000000-0000-4000-8000-000000000003']]){
+   const result=await c.create({owner,sku,uuid,vip});
+   assert.equal(result.ok,true,sku);
+   assert.equal(result.order.amountBaht,amount);
+   assert.equal(result.order.status,'pending');
+   const qr=c.qrPayload({owner,id:result.order.id});
+   assert.equal(qr.ok,true,sku);
+   assert.ok(qr.payload.includes('A000000677010111'));
+   const other=c.get({owner:userB,id:result.order.id});
+   assert.equal(other.ok,false);
+ }
+ const reused=await c.create({owner,sku:'shield',uuid:'00000000-0000-4000-8000-000000000004',vip});
+ assert.equal(reused.reused,true);
+ assert.equal(reused.order.id,id1);
 });
 
 test('fake provider approval -> one real-logic item grant, never duplicate (offline test only)',async()=>{
@@ -77,7 +83,10 @@ test('fake provider approval -> one real-logic item grant, never duplicate (offl
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM v2_unique_transfers').get().n,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM v2_delivery_outbox WHERE state='complete'").get().n,1);
  assert.equal(c.recent({owner}).orders.length,1);
- assert.equal((await c.create({owner,sku:'shield',uuid:'00000000-0000-4000-8000-000000000004'})).reason,'owner_canary_one_transfer_only');
+ const another=await c.create({owner,sku:'shield',uuid:'00000000-0000-4000-8000-000000000004'});
+ assert.equal(another.ok,true);
+ assert.equal(another.reused,false);
+ assert.notEqual(another.order.id,id1);
 });
 
 test('amount mismatch fails closed and never grants a real item',async()=>{
