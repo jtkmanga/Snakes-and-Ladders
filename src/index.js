@@ -64,6 +64,7 @@ export default {
       // An allowlisted identity is checked on the server, not trusted from the browser.
       if(!adminAllowed(user,env))return json({error:'ไม่มีสิทธิ์ใช้งาน Admin'},403);
       if(request.method!=='GET')return json({error:'Method not allowed'},405);
+      if(url.pathname==='/api/admin/session')return json({admin:true});
       try{
         if(url.pathname==='/api/admin/slip2go/account'){
           const info=await slip2goAccountInfo(env);
