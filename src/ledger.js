@@ -15,6 +15,15 @@ export class PaymentLedger extends DurableObject {
     const rows=this.ctx.storage.sql.exec('SELECT * FROM orders WHERE id=? AND uid=?',id,uid).toArray();
     return rows[0]||null;
   }
+  getRecent(uid){
+    if(typeof uid!=='string'||!uid)return null;
+    // Read-only recovery for the signed-in buyer; never return other users' orders.
+    const cutoff=Date.now()-7*86_400_000;
+    return this.ctx.storage.sql.exec(
+      "SELECT * FROM orders WHERE uid=? AND created_at>=? AND status IN ('pending','verifying','verified','fulfilled') ORDER BY CASE WHEN status='verified' THEN 0 WHEN status='verifying' THEN 1 WHEN status='pending' THEN 2 ELSE 3 END, created_at DESC LIMIT 1",
+      uid,cutoff
+    ).toArray()[0]||null;
+  }
   async create({id,uid,sku}){
     const p=PRODUCTS[sku];if(!p||!uid||!/^order-[a-f0-9-]{36}$/.test(id))return {ok:false,reason:'invalid_order'};
     const now=Date.now(),rateKey=`rate:${uid}`;
