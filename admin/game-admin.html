@@ -2,8 +2,8 @@
 <html lang="th"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
-<title>Snakes & Ladders | Game Admin</title>
-<link rel="stylesheet" href="/game-admin.css?v=1">
+<title>Snakes & Ladders | Game Admin V81</title>
+<link rel="stylesheet" href="/game-admin.css?v=2">
 </head><body>
 <header class="topbar"><div class="brand"><span class="brand-icon">🐍</span><span><strong>Snakes & Ladders</strong><small>Game Administration</small></span></div>
 <div class="top-actions"><a href="/" class="ghost-link">กลับหน้าเกม</a><button id="sign-out" class="secondary small" hidden>ออกจากระบบ</button></div></header>
@@ -51,6 +51,45 @@
    </form>
  </section>
 </div>
+<div class="section-grid">
+ <section class="panel">
+   <h2>🛠️ โหมดปรับปรุงเซิร์ฟเวอร์</h2>
+   <p class="muted">ปิดเฉพาะการจับคู่ห้องใหม่ ห้องที่กำลังเล่นอยู่สามารถเล่นจนจบได้ ไม่ได้ปิดระบบชำระเงิน</p>
+   <label class="maintenance-toggle"><input id="maintenance-free" type="checkbox"> <span>หยุดรับห้องใหม่ Free Server</span></label>
+   <label class="maintenance-toggle"><input id="maintenance-vip" type="checkbox"> <span>หยุดรับห้องใหม่ VIP Server</span></label>
+   <small class="muted" id="maintenance-status">กำลังตรวจสถานะ…</small>
+ </section>
+ <section class="panel">
+   <h2>💾 สำรองข้อมูลคะแนน</h2>
+   <p class="muted">ดาวน์โหลดคะแนนและรายชื่อที่มีในฐานข้อมูล ณ เวลาที่ส่งออก โดยไม่มีการแก้ไขหรือล้างคะแนน</p>
+   <div class="backup-buttons">
+     <button class="secondary" id="export-free-csv">ดาวน์โหลด Free CSV</button>
+     <button class="secondary" id="export-vip-csv">ดาวน์โหลด VIP CSV</button>
+     <button class="secondary" id="export-free-json">สำรอง Free JSON</button>
+     <button class="secondary" id="export-vip-json">สำรอง VIP JSON</button>
+   </div>
+   <small class="muted" id="export-status">ไฟล์มีข้อมูลส่วนบุคคล โปรดเก็บไว้ในที่ปลอดภัย</small>
+ </section>
+</div>
+<section class="panel">
+ <div class="toolbar"><h2>🛡️ ระงับบัญชีผู้เล่น</h2><button class="secondary" id="refresh-bans">↻ อัปเดต</button></div>
+ <p class="muted">แบนบัญชี Google นี้ในทั้ง Free และ VIP และปฏิเสธการจับคู่หรือเชื่อมต่อห้องใหม่โดยไม่ลบคะแนนหรือสิทธิ์ VIP เดิม</p>
+ <form id="ban-form" class="ban-form">
+  <label>Player UID<input id="ban-uid" type="text" maxlength="128" placeholder="UID ผู้เล่นจากตาราง" required></label>
+  <label>เหตุผล (ผู้ดูแลเห็นเท่านั้น)<input id="ban-reason" type="text" maxlength="160" placeholder="เช่น ใช้โปรแกรมโกง" required></label>
+  <button class="warn" id="ban-submit" type="submit">ระงับบัญชี</button>
+ </form>
+ <div class="toolbar"><strong>บัญชีที่ถูกระงับ</strong><span class="muted" id="bans-count">—</span></div>
+ <div id="ban-list" class="history-list"><p class="muted">ยังไม่มีข้อมูล</p></div>
+ <button id="more-bans" class="secondary" hidden>ดูเพิ่ม</button>
+</section>
+<section class="panel">
+ <div class="toolbar"><h2>🧾 ประวัติรายการ VIP</h2><button class="secondary" id="refresh-vip-transactions">↻ อัปเดต</button></div>
+ <p class="muted">แสดงเฉพาะข้อมูลคำสั่งซื้อ VIP ของ Payment V2 โดยปิดบัง UID/เลขคำสั่งซื้อบางส่วน ไม่เปิดเผยบัญชีธนาคาร รหัสตรวจสลิป หรือข้อมูลลับ</p>
+ <div class="table-scroll"><table><thead><tr><th>คำสั่งซื้อ / ผู้ซื้อ</th><th>ยอดเงิน</th><th>สถานะ</th><th>วันที่</th></tr></thead>
+  <tbody id="vip-transactions-body"><tr><td colspan="4">กำลังโหลด…</td></tr></tbody></table></div>
+ <div class="pager"><span id="vip-transactions-count">—</span><button id="more-vip-transactions" class="secondary" hidden>ดูรายการเพิ่ม</button></div>
+</section>
 <section class="panel"><div class="toolbar"><h2>🏆 ประวัติผู้ชนะก่อนรีเซ็ต</h2><button id="refresh-history" class="secondary">↻ โหลดใหม่</button></div>
  <div class="switchbar compact"><button class="history-tab active" data-history="free">Free</button><button class="history-tab" data-history="vip">VIP</button></div>
  <div id="history-list" class="history-list"><p class="muted">กำลังโหลด…</p></div>
@@ -70,5 +109,5 @@
  </form>
 </div>
 <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
-<script type="module" src="/game-admin.js?v=1"></script>
+<script type="module" src="/game-admin.js?v=2"></script>
 </body></html>
