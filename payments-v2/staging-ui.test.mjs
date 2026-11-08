@@ -26,12 +26,13 @@ test('demo purchase never creates a payable QR or calls old paid endpoints',()=>
  const end=game.indexOf('let activePaymentQrUrl=null;',start);
  assert.ok(start>=0&&end>start);
  const demo=game.slice(start,end);
+ const openDemo=game.slice(game.indexOf('function showBuyerDemoV2Panel('),start);
  assert.ok(demo.includes('/api/payments/v2/demo-orders'));
  assert.ok(!demo.includes('loadPaymentQr('));
  assert.ok(!demo.includes('/api/orders/'));
- assert.ok(demo.includes("('payment-submit').disabled=true"));
- assert.ok(demo.includes("('payment-slip').disabled=true"));
- assert.ok(demo.includes('ไม่มี QR ที่สแกนจ่ายเงินจริง'));
+ assert.ok(openDemo.includes("('payment-submit').disabled=true"));
+ assert.ok(openDemo.includes("('payment-slip').disabled=true"));
+ assert.ok(openDemo.includes('ไม่มี QR ที่สแกนจ่ายเงินจริง'));
  for(const real of ['data-buy="win2" type="button" disabled','data-buy="shield" type="button" disabled','id="vip-buy" type="button" disabled'])
   assert.ok(html.includes(real),'real purchase button unexpectedly enabled: '+real);
 });
