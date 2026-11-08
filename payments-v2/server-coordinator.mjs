@@ -16,7 +16,7 @@ export async function verifyOrderV2({
   if(!ledger||typeof userId!=='string'||!userId||typeof orderId!=='string')
     return {ok:false,reason:'invalid_request'};
   if(!providerStageReady(env,mode))
-    return {ok:false,reason:'provider_stage_not_authorized'};
+    return {ok:false,reason:mode==='synthetic'?'safe_mode_required':'provider_stage_not_authorized'};
   const receiver={accountType:env.MERCHANT_ACCOUNT_TYPE,accountNumber:env.MERCHANT_ACCOUNT_NUMBER};
   if(receiver.accountType!=='02004'||typeof receiver.accountNumber!=='string'||!/^\d{15}$/.test(receiver.accountNumber))
     return {ok:false,reason:'receiver_not_ready'};
