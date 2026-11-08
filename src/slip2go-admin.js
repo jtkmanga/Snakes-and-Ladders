@@ -31,19 +31,45 @@ function maskedAccount(value){
   const digits=value.replace(/\D/g,'');
   return digits.length>=4?'••••'+digits.slice(-4):null;
 }
+// Sanitized diagnostic codes only. Never expose provider response bodies, tokens, or account numbers.
+const PROVIDER_ERROR_CODES=new Set([
+  '400003','401001','401002','401003','401004','401005','401006','401007','429000','500500','500503'
+]);
+export class Slip2GoAdminError extends Error{
+  constructor(reason, httpStatus=null, providerCode=null){
+    super('Slip2Go admin request: '+reason);
+    this.name='Slip2GoAdminError';
+    this.reason=reason;
+    this.httpStatus=Number.isInteger(httpStatus)&&httpStatus>=100&&httpStatus<=599?httpStatus:null;
+    this.providerCode=PROVIDER_ERROR_CODES.has(providerCode)?providerCode:null;
+  }
+  publicDiagnostic(){
+    return {reason:this.reason,httpStatus:this.httpStatus,providerCode:this.providerCode};
+  }
+}
 async function readProvider(env,path,providerFetch){
-  const url=adminEndpoint(env,path);
+  let url;
+  try{url=adminEndpoint(env,path);}
+  catch{throw new Slip2GoAdminError('configuration');}
   let response;
   try{
     response=await providerFetch(url,{
       method:'GET',headers:{Authorization:env.SLIP2GO_SECRET,Accept:'application/json'},
       redirect:'error',signal:AbortSignal.timeout(12000)
     });
-  }catch{throw Error('Slip2Go connection failed');}
-  if(!response?.ok)throw Error('Slip2Go could not provide data');
+  }catch(e){
+    const timeout=e?.name==='TimeoutError'||e?.name==='AbortError';
+    throw new Slip2GoAdminError(timeout?'timeout':'network');
+  }
+  if(!response||typeof response.ok!=='boolean')throw new Slip2GoAdminError('invalid_response');
+  const status=Number.isInteger(response.status)?response.status:null;
   const body=await response.json().catch(()=>null);
-  if(String(body?.code)!=='200001'||!body?.data||typeof body.data!=='object'){
-    throw Error('Slip2Go returned no valid admin data');
+  const code=typeof body?.code==='string'?body.code:null;
+  if(!response.ok||code!=='200001'){
+    throw new Slip2GoAdminError(!body?'non_json':!response.ok?'provider_http':'provider_code',status,code);
+  }
+  if(!body?.data||typeof body.data!=='object'||Array.isArray(body.data)){
+    throw new Slip2GoAdminError('invalid_response',status);
   }
   return body.data;
 }
