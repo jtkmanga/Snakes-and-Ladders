@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
-  adminAllowed,validSlipReference,slip2goAccountInfo,slip2goSlipHistory
+  adminAllowed,validSlipReference,slip2goAccountInfo,slip2goSlipHistory,Slip2GoAdminError
 } from '../src/slip2go-admin.js';
 
 const worker=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
@@ -73,7 +73,8 @@ test('lookup rejects path traversal, excessive references and malformed records'
     await assert.rejects(slip2goSlipHistory(env,invalid,()=>{throw Error('Should not call provider')}),/Invalid/);
   }
   assert.equal(validSlipReference('AB12cd-1234_5678'),true);
-  await assert.rejects(slip2goAccountInfo(env,async()=>reply({},'401001')),/no valid admin data/);
+  await assert.rejects(slip2goAccountInfo(env,async()=>reply({},'401001')),error=>
+    error instanceof Slip2GoAdminError&&error.publicDiagnostic().providerCode==='401001');
   await assert.rejects(slip2goAccountInfo({...env,SLIP2GO_API_BASE_URL:'https://evil.example/'},async()=>{throw Error('Should not call provider')}),/invalid Slip2Go API origin/);
 });
 test('Admin UI is separate, read-only, secured, and never exposes API credentials',()=>{
@@ -84,4 +85,40 @@ test('Admin UI is separate, read-only, secured, and never exposes API credential
   assert.match(ui,/\/api\/admin\/slip2go\/account/);
   assert.match(ui,/\/api\/admin\/slip2go\/history\?referenceId=/);
   assert.doesNotMatch(page+ui,/SLIP2GO_SECRET|MERCHANT_ACCOUNT_NUMBER|PAYMENTS_ENABLED\\s*=\\s*true/);
+});
+
+test('Slip2Go authentication and IP whitelist errors yield sanitized diagnostics',async()=>{
+  const secret='not-for-browser';
+  for(const [status,code] of [[401,'401001'],[401,'401007'],[429,'429000'],[503,'500503']]){
+    const fetchMock=async()=>({ok:false,status,json:async()=>({
+      code,message:'Provider secret: '+secret,
+      data:{accountNumber:'0123456789',rawQR:'VERY_SECRET'}
+    })});
+    await assert.rejects(slip2goAccountInfo(env,fetchMock),error=>{
+      assert(error instanceof Slip2GoAdminError);
+      const diagnostic=error.publicDiagnostic();
+      assert.deepEqual(diagnostic,{reason:'provider_http',httpStatus:status,providerCode:code});
+      const output=JSON.stringify(diagnostic);
+      assert(!output.includes(secret)&&!output.includes('0123456789')&&!output.includes('VERY_SECRET'));
+      return true;
+    });
+  }
+});
+test('non JSON, malformed replies, and network failures are classified without raw error leakage',async()=>{
+  await assert.rejects(slip2goAccountInfo(env,async()=>({
+    ok:false,status:403,json:async()=>{throw Error('HTML sensitive response text');}
+  })),e=>e instanceof Slip2GoAdminError&&e.reason==='non_json'&&e.httpStatus===403);
+  await assert.rejects(slip2goAccountInfo(env,async()=>({
+    ok:true,status:200,json:async()=>({code:'200001',data:[]})
+  })),e=>e instanceof Slip2GoAdminError&&e.reason==='invalid_response');
+  await assert.rejects(slip2goAccountInfo(env,async()=>{throw Error('SECRET_NETWORK_BODY');}),
+    e=>e instanceof Slip2GoAdminError&&e.reason==='network'&&!e.message.includes('SECRET_NETWORK_BODY'));
+});
+test('only authenticated Admin receives bounded error diagnostics',()=>{
+  assert.match(worker,/if\(!adminAllowed\(user,env\)\)return json\(\{error:'ไม่มีสิทธิ์ใช้งาน Admin'\},403\)/);
+  assert.match(worker,/e instanceof Slip2GoAdminError/);
+  assert.match(worker,/diagnostic:e?\.publicDiagnostic\(\)/); 
+  assert.match(ui,/function explainAdminFailure\(data,status\)/);
+  assert.match(ui,/'401007':'IP Whitelist/);
+  assert.doesNotMatch(ui,/SLIP2GO_SECRET/);
 });
