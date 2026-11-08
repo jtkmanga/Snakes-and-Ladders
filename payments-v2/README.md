@@ -1,6 +1,27 @@
+## 2026-11-08 — buyer checkout mock in game (V62, no actual payments)
+
+**User approval:** Continue implementing stages 1–4 but STOP before stage 5 (the first low-value real-money transfer). The owner cannot run a bank transfer test yet. DO NOT request money, enable payable QR, or activate production payment flags.
+
+- **Current staging Worker:** V62, full 100% deployment, with `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. This is a preview only.
+- New Firebase-authenticated game route `/api/payments/v2/demo-orders` (GET and POST) stores **test-only** orders at server-authoritative prices for `shield` (10 THB), `win2` (20 THB), or `vip` (100 THB). It reads UID from a verified Google/Firebase token rather than browser-supplied UID, limits 12 new orders/24h/UID, and stores records in `payment-v2-game-preview-v1`, a **different** Durable Object instance from real `payment-ledger-v1`.
+- Route `POST /api/payments/v2/demo-orders/:id/simulate` accepts allowlisted **fake scenarios only**, keeps UID ownership, records a fake reference with UNIQUE constraints, and marks the preview as `sim_fulfilled`. It **never calls Slip2Go or touches VIP/ITEMS**, never issues a provider-verified payment receipt, and cannot grant live game benefits.
+- Frontend staging game adds **🧪 ทดลองคำสั่งซื้อ** buttons for three SKUs and a buyer history button. A demo order shows server-provided price/order ID, a **disabled non-scannable QR placeholder**, a fake-provider acceptance/rejection test and recent synthetic history. All real-purchase buttons remain disabled.
+- The staged provider adapter and streaming upload preflight remain available for later integration, but the genuine slip/entitlement path remains **unverified and disabled**.
+- GitHub snapshots `staging-game-v62.mjs`, `staging-index-v62.html` plus `staging-ui.test.mjs` pass node module syntax and demo UI safety checks; latest GitHub Actions push and PR runs both succeeded.
+- **Remaining before stage 5:** end-to-end authenticated browser verification of buyer routes, owner-approved QR/payee validation in a controlled canary, real Slip2Go response checked against a genuine transfer, atomic real V2 ledger + downstream entitlement under concurrency, VIP capacity and refund/recovery review. These cannot be claimed complete based on mock green checks.
+- **Explicit STOP condition:** No actual transfer, no live QR and no `PAYMENTS_ENABLED=true` or `PAYMENT_ROLLOUT` change until the owner explicitly resumes stage 5.
+
+### Mobile staging check
+
+1. Open `https://snakes-and-ladders-staging.jtkmanga.workers.dev/?v=62` and log in with Google.
+2. On the authentication screen tap **🧪 ทดลองคำสั่งซื้อ VIP ฿100**, or in Lobby tap the mock buy button for an item.
+3. Ensure an ID beginning with `demo-v2-`, server price and **no payable QR** are visible.
+4. Tap mock **unverified** then **approved**; only `sim_fulfilled` should appear, no real player VIP/item benefit.
+5. Refresh, use **📋 ดูคำสั่งซื้อทดสอบของฉัน** to read persisted history. No bank account needed.
+
 # Snakes & Ladders — Payment V2 (STAGING / NOT LIVE)
 
-**Updated 8 November 2026 — Worker V60.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
+**Updated 8 November 2026 — Worker V62.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
 
 ## What is verified in staging
 
@@ -10,7 +31,7 @@
 - Thai QR E-Wallet data structure and CRC for 10 and 100 THB passed *in-memory* checks; no payable QR was issued.
 - Admin-only sandbox test orders for shield (10 THB), win2 (20 THB), and VIP 30 days (100 THB) were written and retrieved using a **separate** Durable Object instance `payment-v2-sandbox-only`.
 - Six mock validation cases and a *synthetic* replay key survived storage and were checked on the admin page. These results are NOT evidence of a bank transaction or live provider slip check.
-- The current **staging Worker is V60**. Atomic SQLite smoke testing is mounted on the admin-only `/api/payments/v2/atomic-smoke` route and the separate `payment-v2-atomic-sandbox-v1` DO instance. The owner submitted the test and after refresh confirmed 6/6 green checks and a persisted history record (2026-11-08 ~17:53 ICT). V59 adds the admin-only `/api/payments/v2/e2e-mock` route with a DIFFERENT isolated DO instance `payment-v2-e2e-mock-v1`; it runs a synthetic fake-Slip2Go 200200/200000 response through the V2 adapter and atomic ledger and a **fake** VIP receipt table, including retry after a simulated crash. It cannot contact real Slip2Go, create payable QR, activate real VIP or modify live Inventory. The real buyer-facing paid-order and real-slip upload routes are still disabled. The owner ran the V59 E2E mock button: all six fake-provider/fake-VIP checks passed and the history survived refresh (8 November 2026, 18:03–18:04 ICT). V60 adds the admin-only `/api/payments/v2/upload-preflight` route backed by `payments-v2/receipt-upload.mjs`. It accepts a raw PNG/JPEG image with a strict 4 MB streaming limit, verifies MIME against file signature and never stores the image, calls Slip2Go, creates orders or grants VIP. The Admin button submits only an in-browser-generated synthetic PNG; the owner has NOT YET run the V60 button.
+- The current **staging Worker is V62** (buyer-facing mock checkout added; no payment accepted). Atomic SQLite smoke testing is mounted on the admin-only `/api/payments/v2/atomic-smoke` route and the separate `payment-v2-atomic-sandbox-v1` DO instance. The owner submitted the test and after refresh confirmed 6/6 green checks and a persisted history record (2026-11-08 ~17:53 ICT). V59 adds the admin-only `/api/payments/v2/e2e-mock` route with a DIFFERENT isolated DO instance `payment-v2-e2e-mock-v1`; it runs a synthetic fake-Slip2Go 200200/200000 response through the V2 adapter and atomic ledger and a **fake** VIP receipt table, including retry after a simulated crash. It cannot contact real Slip2Go, create payable QR, activate real VIP or modify live Inventory. The real buyer-facing paid-order and real-slip upload routes are still disabled. The owner ran the V59 E2E mock button: all six fake-provider/fake-VIP checks passed and the history survived refresh (8 November 2026, 18:03–18:04 ICT). V60 adds the admin-only `/api/payments/v2/upload-preflight` route backed by `payments-v2/receipt-upload.mjs`. It accepts a raw PNG/JPEG image with a strict 4 MB streaming limit, verifies MIME against file signature and never stores the image, calls Slip2Go, creates orders or grants VIP. The Admin button submits only an in-browser-generated synthetic PNG; the owner has NOT YET run the V60 button.
 
 ## Current reviewed source files — NOT connected to live checkout
 
