@@ -67,6 +67,13 @@ export class AdminBoard {
   const online=this.one("SELECT COUNT(*) AS n FROM admin_players WHERE last_seen>=?",cutoff)?.n||0;
   return {players:rows.map(p=>({...p,online:p.lastSeen>=cutoff})),total,online};
  }
+ exportPage({offset=0,limit=250}={}){
+  const n=Math.min(500,Math.max(1,Math.trunc(Number(limit)||250)));
+  const o=Math.max(0,Math.trunc(Number(offset)||0));
+  const total=Number(this.one("SELECT COUNT(*) AS n FROM admin_players")?.n||0);
+  const rows=this.rows("SELECT uid,email,name,avatar,score,last_seen AS lastSeen,joined_at AS joinedAt,updated_at AS updatedAt FROM admin_players ORDER BY uid ASC LIMIT ? OFFSET ?",n,o);
+  return {total,offset:o,limit:n,rows};
+ }
  edit({uid,name,score},actor,now=Date.now()){
   if(!validUid(uid)||typeof actor!=='string')return {ok:false,reason:'invalid_identity'};
   if(name!==undefined&&(!validName(normalName(name))))return {ok:false,reason:'invalid_name'};
