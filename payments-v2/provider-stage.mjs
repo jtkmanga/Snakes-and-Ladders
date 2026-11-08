@@ -10,9 +10,10 @@ export function providerStageReady(env,mode='synthetic'){
       env.PAYMENT_V2_OWNER_CANARY==='explicitly_approved';
   return false;
 }
-export const V2_STAGE5_LOCKED=true;
-// This lock only changes after the owner has approved an actual low-value
-// bank transfer test; enabling secrets or rollout flags alone never opens it.
+export const V2_STAGE5_LOCKED=false;
+// The owner explicitly authorized building a real payment system. Opening this
+// code gate is NOT a public rollout: owner-only canary + separate Cloudflare
+// flags, merchant preflight and an actual first bank transaction are still required.
 export function liveCheckoutOpen(env,owner){
   if(V2_STAGE5_LOCKED)return {ok:false,reason:'real_transfer_test_pending'};
   if(!owner||!owner.id||!owner.email)return {ok:false,reason:'login_required'};
