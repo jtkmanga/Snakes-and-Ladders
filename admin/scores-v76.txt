@@ -16,6 +16,11 @@ export class Scores extends DurableObject {
       kv.put('admin:nextReset',due);
       await this.ctx.storage.setAlarm(due);
     }
+    // Repair a previously scheduled alarm if the Bangkok weekday rule changed.
+    if(due>now&&due!==nextResetAt(now,server)){
+      due=nextResetAt(now,server);kv.put('admin:nextReset',due);
+      await this.ctx.storage.setAlarm(due);
+    }
     if(due<=now){
       board.reset({server,at:due,mode:'auto',actor:'scheduler'});
       kv.put('leaders',[]);
