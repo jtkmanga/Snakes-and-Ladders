@@ -51,6 +51,10 @@ export async function verifySlip(file,order,env){
   if(!file||typeof file.arrayBuffer!=='function'||file.size>4_000_000||file.size<100||!['image/png','image/jpeg'].includes(file.type))throw Error('รองรับเฉพาะรูป PNG/JPG ขนาดไม่เกิน 4MB');
   if(Date.now()>order.expiresAt)throw Error('คำสั่งซื้อหมดอายุ');
   const checks={
+    // The same Slip2Go shop may serve more than one game. Provider duplicate
+    // checks protect against replay across projects; the DO ledger independently
+    // rejects replay within this game.
+    checkDuplicate:true,
     checkReceiver:[{accountType:env.MERCHANT_ACCOUNT_TYPE,accountNumber:env.MERCHANT_ACCOUNT_NUMBER,...(env.MERCHANT_ACCOUNT_NAME_TH?{accountNameTH:env.MERCHANT_ACCOUNT_NAME_TH}:{})}],
     checkAmount:{type:'eq',amount:String(order.amount)}
   };
