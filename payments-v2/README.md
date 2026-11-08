@@ -1,6 +1,6 @@
 # Snakes & Ladders — Payment V2 (STAGING / NOT LIVE)
 
-**Updated 8 November 2026 — Worker V59.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
+**Updated 8 November 2026 — Worker V60.** Public checkout and real-money QR remain disabled in Cloudflare: `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. All historical orders, scores, VIP rights, and other game data must remain untouched.
 
 ## What is verified in staging
 
@@ -10,7 +10,7 @@
 - Thai QR E-Wallet data structure and CRC for 10 and 100 THB passed *in-memory* checks; no payable QR was issued.
 - Admin-only sandbox test orders for shield (10 THB), win2 (20 THB), and VIP 30 days (100 THB) were written and retrieved using a **separate** Durable Object instance `payment-v2-sandbox-only`.
 - Six mock validation cases and a *synthetic* replay key survived storage and were checked on the admin page. These results are NOT evidence of a bank transaction or live provider slip check.
-- The current **staging Worker is V59**. Atomic SQLite smoke testing is mounted on the admin-only `/api/payments/v2/atomic-smoke` route and the separate `payment-v2-atomic-sandbox-v1` DO instance. The owner submitted the test and after refresh confirmed 6/6 green checks and a persisted history record (2026-11-08 ~17:53 ICT). V59 adds the admin-only `/api/payments/v2/e2e-mock` route with a DIFFERENT isolated DO instance `payment-v2-e2e-mock-v1`; it runs a synthetic fake-Slip2Go 200200/200000 response through the V2 adapter and atomic ledger and a **fake** VIP receipt table, including retry after a simulated crash. It cannot contact real Slip2Go, create payable QR, activate real VIP or modify live Inventory. The real buyer-facing paid-order and real-slip upload routes are still disabled. The owner has NOT YET run the V59 E2E mock button.
+- The current **staging Worker is V60**. Atomic SQLite smoke testing is mounted on the admin-only `/api/payments/v2/atomic-smoke` route and the separate `payment-v2-atomic-sandbox-v1` DO instance. The owner submitted the test and after refresh confirmed 6/6 green checks and a persisted history record (2026-11-08 ~17:53 ICT). V59 adds the admin-only `/api/payments/v2/e2e-mock` route with a DIFFERENT isolated DO instance `payment-v2-e2e-mock-v1`; it runs a synthetic fake-Slip2Go 200200/200000 response through the V2 adapter and atomic ledger and a **fake** VIP receipt table, including retry after a simulated crash. It cannot contact real Slip2Go, create payable QR, activate real VIP or modify live Inventory. The real buyer-facing paid-order and real-slip upload routes are still disabled. The owner ran the V59 E2E mock button: all six fake-provider/fake-VIP checks passed and the history survived refresh (8 November 2026, 18:03–18:04 ICT). V60 adds the admin-only `/api/payments/v2/upload-preflight` route backed by `payments-v2/receipt-upload.mjs`. It accepts a raw PNG/JPEG image with a strict 4 MB streaming limit, verifies MIME against file signature and never stores the image, calls Slip2Go, creates orders or grants VIP. The Admin button submits only an in-browser-generated synthetic PNG; the owner has NOT YET run the V60 button.
 
 ## Current reviewed source files — NOT connected to live checkout
 
@@ -47,7 +47,8 @@ node --test payments-v2/*.test.mjs
 
 - The staging Worker V59 has **🧪 ทดสอบฐานข้อมูลอะตอมมิก (จำลอง)** and **📚 ดูประวัติทดสอบอะตอมมิก**; the owner confirmed success after a page refresh.
 - New buttons **🧪 ทดสอบตรวจสลิป→VIP จำลอง (ไม่โอนเงินจริง)** and **📚 ดูประวัติทดสอบครบวงจร** are available at `/admin?v=59`. These use entirely fabricated Slip2Go responses and a mock VIP receipt table in `payment-v2-e2e-mock-v1`, not a real payment or a real user entitlement. The owner must run them and inspect the result before proceeding to real provider integration.
-- Only after tests, implement authenticated buyer endpoints for pending V2 orders, QR display and slip upload; wire server coordinator to provider and dedicated global ledger; use existing VIP/Inventory idempotent methods.
+- Worker V60 has **🖼️ ทดสอบตรวจรูปสลิป (ภาพสมมติเท่านั้น)** available at `/admin?v=60`. The server-only route `/api/payments/v2/upload-preflight` is admin-authenticated, checks strict `Content-Type`, streams up to 4 MB max and rejects a MIME/signature mismatch. The button intentionally generates a fake PNG inside the browser and verifies a forged JPEG media type is rejected. **It does not accept orders, contact the provider, or grant VIP.** Owner must run the button to validate on Cloudflare.
+- Only after the upload preflight and code audit, implement authenticated **buyer-specific** pending V2 order and authorized image upload to the actual provider, plus safe QR display and approved canary. Bind each upload to a server-side UID/order and retain atomic replay and stable idempotency keys.
 - Stage canary first with the owner's explicit approval for a real transfer, then review before public rollout.
 - Keep the V1 payment endpoints quarantined, and retain all old player privileges.
 
