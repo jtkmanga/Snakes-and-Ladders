@@ -69,3 +69,17 @@ Staging is deployed via Cloudflare API with embedded static router. Repository `
 - On mobile, if no order is found in the last seven days, the recovery panel now ends its progress message and offers a one-tap **view-only** checkout preview. This demo does not expose a scan-able PromptPay QR.
 - CI: 86/86 tests passed. Cloudflare staging script deployed, traffic 100%; `PAYMENTS_ENABLED=false`, `PAYMENT_ROLLOUT=canary`, merchant secrets remain encrypted, all six Durable Object bindings remain intact.
 - **Still pending live validation**: owner clicks the read-only API test and reports the result; only after it passes should a separate, explicitly authorized owner-only payment canary be considered. Do not enable general-public checkout or infer a successful real Slip2Go call from unit tests.
+
+## Live-money owner canary — 8 November 2026
+
+**This is NOT a public payment launch and does NOT establish 100% end-to-end success.**
+
+- Current Cloudflare Staging bindings: `PAYMENTS_ENABLED=true`, `PAYMENT_ROLLOUT=canary`. Only the verified Google identity matching `ADMIN_EMAIL` may create live orders.
+- Initially only the `shield` item (THB10) is eligible. VIP THB100 and win multiplier THB20 remain disabled during this pilot. A verified/fulfilled pilot order prevents a second live order without an explicit later release.
+- Preflight before creating an order: GET `/api/account/info` with raw `Authorization` Secret; require the exact configured shop name `Lucky Game`, a current package expiration, and sufficient verification quota. **If the upstream call fails, no live order or QR is created.**
+- Corrected the cause of previous preflight error: Cloudflare Workers does not support `fetch` with `redirect:'error'`; it throws a TypeError before the request reaches Slip2Go. Both the admin read-only helper and verification request now use `redirect:'manual'` and do not follow redirects. Reference: https://developers.cloudflare.com/workers/runtime-apis/request/
+- Bank QR is rendered **from the server-stored PromptPay Secret for each order's exact THB amount**. The user-provided static QR screenshot is not used as a live order QR.
+- Transfer must occur during the original 15-minute QR window. An authentic slip for that timed transfer may be uploaded for 24h for recovery; bank transfer IDs are hashed and checked against the Durable Object ledger. `200200` provider validation is required, along with checkDuplicate, exact receiver, amount and date constraints.
+- Approval to turn on the **owner-only** payment canary does not authorize a public rollout.
+- GitHub Actions 91/91 checks passed. Cloudflare reported version `a48e6542-d78b-4752-8d92-a29a72f7e23d` deployed at 100% traffic; Firebase bindings and all 6 Durable Objects preserved; payment Secret and receiving phone remain secret bindings.
+- **Next manual smoke test:** owner signs in to Staging and clicks “ทดสอบเชื่อม Slip2Go” first. Only if success, enter Lobby → Shop → “เกราะกันงู ซื้อจริง ฿10”. Confirm bank app displays correct receiving account/name and THB10 before transferring. Attach the genuine slip to that exact order. Confirm entitlement and no double grants. If any check fails, do not transfer and report the sanitized error.
