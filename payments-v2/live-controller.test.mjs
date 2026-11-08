@@ -35,3 +35,91 @@ test('live controller is fail-closed even with all canary flags set until Stage 
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM v2_paid_orders').get().n,0);
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM v2_unique_transfers').get().n,0);
 });
+
+
+const samplePng=()=>new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0,0]);
+const allowed=()=>({ok:true});
+const dummyReference='FAKEBANKREF0123456789';
+function fakeProvider(amount=100,reference=dummyReference){
+ return async (url,options)=>{
+  assert.equal(url,'https://connect.slip2go.com/api/verify-slip/qr-image/info');
+  assert.equal(options.method,'POST');
+  assert.equal(options.headers.Authorization,'Bearer dummy_key_only_test');
+  const checks=JSON.parse(options.body.get('payload'));
+  assert.equal(checks.checkDuplicate,true);
+  assert.equal(checks.checkReceiver[0].accountType,'02004');
+  assert.equal(checks.checkAmount.type,'eq');
+  return {status:200,ok:true,json:async()=>({
+    code:'200200',
+    data:{amount,transRef:reference,dateTime:new Date().toISOString(),sender:{bank:{id:'004'}}}
+  })};
+ };
+}
+test('entire real pipeline can be exercised OFFLINE with fake provider and fake VIP, never money',async()=>{
+ const {storage,db}=makeStorage();
+ let applied=0,reserved=0,calls=0;
+ const vip={
+  reserveForCheckout:async()=>{reserved++;return {ok:true}},
+  activateAfterVerifiedPayment:async()=>{applied++;return {ok:true,expiresAt:Date.now()+2592000000}}
+ };
+ const controller=new PaymentV2LiveCoordinator(storage,env,{
+  authorize:allowed,
+  fetchFn:async (...args)=>{calls++;return fakeProvider()(...args)}
+ });
+ const id='payv2-00000000-0000-4000-8000-000000000001';
+ const created=await controller.create({owner,sku:'vip',uuid:'00000000-0000-4000-8000-000000000001',vip});
+ assert.equal(created.ok,true);
+ assert.equal(created.order.amountBaht,100);
+ assert.equal(reserved,1);
+ const qr=controller.qrPayload({owner,id});
+ assert.equal(qr.ok,true);
+ assert.equal(typeof qr.payload,'string');
+ assert.ok(qr.payload.includes('A000000677010111'));
+ const result=await controller.verify({owner,id,bytes:samplePng(),vip,inventory:{}});
+ assert.equal(result.ok,true);
+ assert.equal(result.order.status,'fulfilled');
+ assert.equal(applied,1);
+ assert.equal(calls,1);
+ assert.equal(controller.get({owner,id}).order.status,'fulfilled');
+ const repeat=await controller.verify({owner,id,bytes:samplePng(),vip,inventory:{}});
+ assert.equal(repeat.ok,true);
+ assert.equal(repeat.alreadyFulfilled,true);
+ assert.equal(applied,1);
+ assert.equal(calls,1);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM v2_unique_transfers').get().n,1);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM v2_delivery_outbox WHERE state=\'complete\'').get().n,1);
+ assert.equal(controller.recent({owner}).orders.length,1);
+});
+test('wrong amount cannot lead to VIP activation; cross-account replay cannot claim same transfer',async()=>{
+ const {storage}=makeStorage();
+ let grants=0;
+ const vip={reserveForCheckout:async()=>({ok:true}),
+  activateAfterVerifiedPayment:async()=>{grants++;return {ok:true}}};
+ const wrong=new PaymentV2LiveCoordinator(storage,env,{authorize:allowed,fetchFn:fakeProvider(999)});
+ const uid='payv2-00000000-0000-4000-8000-000000000002';
+ await wrong.create({owner,sku:'vip',uuid:'00000000-0000-4000-8000-000000000002',vip});
+ const bad=await wrong.verify({owner,id:uid,bytes:samplePng(),vip,inventory:{}});
+ assert.equal(bad.ok,false);
+ assert.equal(grants,0);
+ const good=new PaymentV2LiveCoordinator(storage,env,{authorize:allowed,fetchFn:fakeProvider(100)});
+ const aId='payv2-00000000-0000-4000-8000-000000000003';
+ const bId='payv2-00000000-0000-4000-8000-000000000004';
+ await good.create({owner,sku:'vip',uuid:'00000000-0000-4000-8000-000000000003',vip});
+ const ownerB={id:'playerB',email:owner.email};
+ await good.create({owner:ownerB,sku:'vip',uuid:'00000000-0000-4000-8000-000000000004',vip});
+ assert.equal((await good.verify({owner,id:aId,bytes:samplePng(),vip,inventory:{}})).ok,true);
+ const duplicate=await good.verify({owner:ownerB,id:bId,bytes:samplePng(),vip,inventory:{}});
+ assert.equal(duplicate.ok,false);
+ assert.equal(duplicate.reason,'duplicate_transfer');
+ assert.equal(grants,1);
+});
+test('100-person VIP rejection cancels unpaid order before QR can be fetched',async()=>{
+ const {storage}=makeStorage();
+ const c=new PaymentV2LiveCoordinator(storage,env,{authorize:allowed});
+ const vip={reserveForCheckout:async()=>({ok:false,reason:'vip_full'})};
+ const uuid='00000000-0000-4000-8000-000000000005';
+ const out=await c.create({owner,sku:'vip',uuid,vip});
+ assert.equal(out.ok,false);assert.equal(out.reason,'vip_full');
+ assert.equal(c.qrPayload({owner,id:'payv2-'+uuid}).reason,'not_payable');
+ assert.equal(c.get({owner,id:'payv2-'+uuid}).order.status,'cancelled');
+});
