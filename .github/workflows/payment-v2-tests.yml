@@ -1,0 +1,21 @@
+name: Payment V2 validation
+on:
+  push:
+    branches: [payment-v2-rebuild]
+  pull_request:
+    paths:
+      - 'payments-v2/**'
+      - '.github/workflows/payment-v2-tests.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate V2 pure order and slip rules
+        run: node --test payments-v2/core.test.mjs
