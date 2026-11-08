@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
 <title>Snakes & Ladders | Game Admin V81</title>
-<link rel="stylesheet" href="/game-admin.css?v=2">
+<link rel="stylesheet" href="/game-admin.css?v=3">
 </head><body>
 <header class="topbar"><div class="brand"><span class="brand-icon">🐍</span><span><strong>Snakes & Ladders</strong><small>Game Administration</small></span></div>
 <div class="top-actions"><a href="/" class="ghost-link">กลับหน้าเกม</a><button id="sign-out" class="secondary small" hidden>ออกจากระบบ</button></div></header>
@@ -23,6 +23,7 @@
   <article class="metric"><div class="metric-head"><span>👑 VIP Server</span><span id="vip-online-tag" class="status-chip">0 ออนไลน์</span></div>
     <div class="metric-value" id="vip-player-count">—</div><p>ผู้เล่นที่มีข้อมูลในเซิร์ฟเวอร์</p><small>รีเซ็ตถัดไป <span id="vip-next">—</span></small></article>
 </section>
+<div class="live-overview-status" id="online-overview-updated" role="status">🟢 กำลังตรวจจำนวนออนไลน์ Free/VIP จากเซิร์ฟเวอร์…</div>
 <div class="toolbar"><h2>ผู้เล่นและคะแนน</h2><div class="toolbar-actions"><span class="muted" id="last-refresh">—</span><button id="refresh" class="secondary">↻ รีเฟรช</button></div></div>
 <section class="panel">
  <div class="switchbar"><button class="server-tab active" id="tab-free" data-server="free">🌿 Free Server</button>
@@ -109,5 +110,5 @@
  </form>
 </div>
 <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
-<script type="module" src="/game-admin.js?v=2"></script>
+<script type="module" src="/game-admin.js?v=3"></script>
 </body></html>
