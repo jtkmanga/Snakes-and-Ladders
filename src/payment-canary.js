@@ -6,7 +6,8 @@ import {PRODUCTS} from './payments.js';
 
 export function allowedCanaryItem(env,sku){
   if(!PRODUCTS[sku])return false;
-  return env.PAYMENT_ROLLOUT!=='canary'||sku==='shield';
+  // An absent/unknown rollout must never unlock higher-priced purchases.
+  return env.PAYMENT_ROLLOUT==='public'||sku==='shield';
 }
 export function validateMerchantReadiness(account,env,now=Date.now()){
   const expected=String(env.MERCHANT_DISPLAY_NAME||'').trim().normalize('NFC').toLowerCase();
