@@ -15,11 +15,12 @@ function publicOrder(o){
   };
 }
 export class PaymentV2LiveCoordinator {
-  constructor(storage,env){
+  constructor(storage,env,{authorize=liveCheckoutOpen,fetchFn}={}){
     this.storage=storage;this.env=env;
+    this.authorize=authorize;this.fetchFn=fetchFn;
     this.ledger=new PaymentV2AtomicLedger(storage);
   }
-  gate(owner){return liveCheckoutOpen(this.env,owner);}
+  gate(owner){return this.authorize(this.env,owner);}
   async create({owner,sku,uuid,vip}){
     const gate=this.gate(owner);if(!gate.ok)return gate;
     if(!['shield','win2','vip'].includes(sku))return {ok:false,reason:'unknown_product'};
@@ -75,7 +76,8 @@ export class PaymentV2LiveCoordinator {
     try{
       const verified=await verifyOrderV2({
         ledger:this.ledger,userId:owner.id,orderId:id,bytes,
-        env:this.env,mode:'live-owner-canary'
+        env:this.env,mode:'live-owner-canary',
+        ...(this.fetchFn?{fetchFn:this.fetchFn}:{})
       });
       if(!verified.ok)return verified;
       const delivered=await deliverVerifiedOrderV2({
