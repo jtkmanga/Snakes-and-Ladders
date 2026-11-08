@@ -79,6 +79,12 @@ export class Scores extends DurableObject {
     this.ctx.storage.kv.put('leaders',[]);
     return {...result,nextReset:this.ctx.storage.kv.get('admin:nextReset')};
   }
+  async adminExport({server,limit=250,offset=0,actor}){
+    const b=await this.ensureBoard(server);
+    const result=b.exportPage({limit,offset});
+    if(offset===0&&typeof actor==='string')b.audit(actor,'export_scores',null,server+':'+result.total);
+    return {ok:true,server,at:Date.now(),nextReset:this.ctx.storage.kv.get('admin:nextReset'),...result};
+  }
   async adminHistory({server}){
     const b=await this.ensureBoard(server);
     return {ok:true,server,nextReset:this.ctx.storage.kv.get('admin:nextReset'),history:b.history()};
