@@ -28,11 +28,14 @@ test('reject fake SKU and invalid identity, do not trust browser-supplied prices
 });
 test('provider checks always enforce replay, exact merchant account, and exact amount',()=>{
  const o=makeOrder('shield');
- const p=makeProviderChecks(o,{accountType:'02001',accountNumber:'0812345678'});
+ const id='123456789012345'; // synthetic E-Wallet ID, NOT a real payee
+ const p=makeProviderChecks(o,{accountType:'02004',accountNumber:id});
  assert.equal(p.checkDuplicate,true);
- assert.deepEqual(p.checkReceiver,[{accountType:'02001',accountNumber:'0812345678'}]);
+ assert.deepEqual(p.checkReceiver,[{accountType:'02004',accountNumber:id}]);
  assert.deepEqual(p.checkAmount,{type:'eq',amount:'10'});
- throws(()=>makeProviderChecks(o,{accountType:'02001',accountNumber:'abc'}),'invalid_receiver');
+ throws(()=>makeProviderChecks(o,{accountType:'02004',accountNumber:'12345678901234'}),'invalid_receiver');
+ throws(()=>makeProviderChecks(o,{accountType:'02001',accountNumber:'0812345678'}),'invalid_receiver');
+ throws(()=>makeProviderChecks(o,{accountType:'02004',accountNumber:'1234567890123456'}),'invalid_receiver');
 });
 test('provider success requires all conditions, not merely a found slip',()=>{
  const o=makeOrder();
