@@ -1,3 +1,24 @@
+## Verified provider access and remaining receiver-account gate — 2026-11-08
+
+The real owner-only comparison on the staging Worker returned:
+- `Authorization: SECRET` → HTTP 401 / provider `401001`
+- `Authorization: Bearer SECRET` → HTTP 200 / provider `200001`
+- The subsequent Payment V2 owner preflight (Worker v46) succeeded, with merchant **Lucky Game**, package **BASIC-1**, 86.75 tokens and about 347 slip checks (as shown in the 14:40 ICT test).
+- The staging Worker remains `PAYMENTS_ENABLED=false` and `PAYMENT_ROLLOUT=disabled`. No QR/checkout was enabled by this patch.
+- These observations establish *provider authentication and merchant account-readiness only*. They do NOT establish payment receiver ownership, QR validity, bank settlement, slip verification, anti-replay or VIP fulfillment.
+
+### Mismatch requiring owner confirmation before any QR
+
+The staging bindings include `MERCHANT_ACCOUNT_TYPE=02001` (phone-number PromptPay) and secret `MERCHANT_ACCOUNT_NUMBER`. A previous Slip2Go receiver-account settings screenshot showed an E-Wallet identifier rather than a phone number. The screenshot is not proof they are different accounts, but the mismatch in account **type** must be resolved before QR or real transfers.
+
+Release gate requirements:
+1. Verify the EXACT receiving PromptPay account and type via the merchant's own banking app / provider dashboard, privately. Do not send full identifiers or QR-embedded personal data to a public repository.
+2. Verify that the QR generator encodes that same intended account and exact order amount.
+3. Create a new V2 order with server-controlled price and authenticated Firebase identity.
+4. Verify a real slip against exact receiver, exact amount and unique bank transfer reference, then atomically grant the entitlement once.
+5. Test a 10-THB canary end to end and confirm settlement to the intended account, including refunds/failure recovery, before enabling public purchases.
+6. Keep legacy transactions and existing VIP rights intact; maintain a separate V2 ledger / anti-replay registry.
+
 # Payment V2 parity audit — 2026-11-08
 
 Scope: compare the current GitHub source of GPT-VOXEL-3D and Treasure-Hunt-2D against the previously inspected live Cloudflare Snakes & Ladders Worker. This report does **not** prove any public payments succeeded.
