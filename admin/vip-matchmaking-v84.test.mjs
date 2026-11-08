@@ -43,7 +43,7 @@ test('Room reserves to frozen capacity; connects and times out to actual players
  assert.ok(main.includes('game.players.length===roomCapacity(game)&&this.activeIds().length===roomCapacity(game)'));
  assert.ok(main.includes('game.current=(game.current+1)%game.players.length'));
  assert.ok(main.includes('maxPlayers:roomCapacity(game)'));
- assert.ok(main.includes('this.env.SCORES.idFromName(\`scores-\${game.server||\\'free\\'}-v1\`)'));
+ assert.ok(main.includes("this.env.SCORES.idFromName(`scores-${game.server||'free'}-v1`)"));
 });
 test('game UI clearly displays 2 VIP, 3 Free and current room capacity',()=>{
  assert.ok(html.includes('🎮 จับคู่ห้องละ 2 คน'));
@@ -55,7 +55,7 @@ test('game UI clearly displays 2 VIP, 3 Free and current room capacity',()=>{
  assert.ok(browser.includes('roomCapacity(game)-(game.connected||[]).length'));
  assert.ok(browser.includes('data.maxPlayers||roomSizeForServer(selectedServer)'));
  assert.ok(!browser.includes('Array.from({length:3-game.players.length}'));
- assert.ok(!browser.includes('game.status===\\'waiting\\'?\\'รอผู้เล่นครบ 3 คน\\''));
+ assert.ok(!browser.includes("game.status==='waiting'?'รอผู้เล่นครบ 3 คน'"));
 });
 test('VIP membership and payment protection are unchanged',()=>{
  assert.ok(main.includes('paymentRolloutAllowed'));
