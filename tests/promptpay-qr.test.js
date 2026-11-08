@@ -58,7 +58,7 @@ test('the QR endpoint requires owner auth and a current server-created pending o
   assert.match(main,/current\.status!=='pending'\|\|Date\.now\(\)>current\.expires_at/);
   assert.match(main,/createPromptPayPayload\(env\.MERCHANT_ACCOUNT_NUMBER,current\.amount\)/);
   assert.match(main,/Cache-Control':'private, no-store'/);
-  assert.match(main,/merchant:paymentConfigured\(env\)\?\{name:env\.MERCHANT_DISPLAY_NAME\|\|null,method:'promptpay_qr',account:null\}/);
+  assert.match(main,/merchant:paymentPublicEnabled\(env\)\?\{name:env\.MERCHANT_DISPLAY_NAME\|\|null,method:'promptpay_qr',account:null\}/);
 });
 test('no buyer phone printed as text in checkout UI or client Javascript',()=>{
   assert.match(html,/id="payment-qr"[^>]*hidden/);
@@ -74,7 +74,7 @@ test('mobile image is saved as an opaque white-background PNG and payment stays 
   assert.match(ui,/canvas\.toBlob\(/);
   assert.match(ui,/ctx\.fillStyle='#ffffff'/);
   assert.match(ui,/ctx\.drawImage\(image,0,0,640,640\)/);
-  assert.match(ui,/if\(!publicConfig\?\.paymentsEnabled\)/);
+  assert.match(ui,/if\(!publicConfig\?\.paymentsEnabled&&!serverMe\?\.canPurchase\)/);
   assert.match(main,/if\(!paymentConfigured\(env\)\)return json\(\{error:'ยังไม่เปิดรับชำระเงินจริง'\},503\)/);
 });
 
