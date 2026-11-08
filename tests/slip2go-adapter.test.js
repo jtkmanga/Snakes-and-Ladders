@@ -48,10 +48,10 @@ test('mocked Slip2Go adapter sends correct multipart checks and exact server ord
   calls++;
   assert.equal(url,'https://connect.slip2go.com/api/verify-slip/qr-image/info');
   assert.equal(opts.method,'POST');
-  assert.equal(opts.headers.Authorization,e.SLIP2GO_SECRET);
+  assert.equal(opts.headers.Authorization,'Bearer '+e.SLIP2GO_SECRET);
   assert.equal(opts.body.has('file'),true);
   const payload=JSON.parse(opts.body.get('payload'));
-  assert.equal(payload.checkDuplicate,true);
+  assert.equal(Object.hasOwn(payload,'checkDuplicate'),false);
   assert.deepEqual(payload.checkReceiver,[{accountType:'02001',accountNumber:e.MERCHANT_ACCOUNT_NUMBER}]);
   assert.deepEqual(payload.checkAmount,{type:'eq',amount:'100'});
   return new Response(JSON.stringify(result('200200')),{status:200,headers:{'Content-Type':'application/json'}});
@@ -77,4 +77,12 @@ test('payments disabled means no HTTP call to Slip2Go even with an uploaded imag
   await assert.rejects(verifySlip(makeFile(),order(),e),/payment not configured/);
   assert.equal(used,false);
  }finally{globalThis.fetch=orig;}
+});
+
+test('merchant-confirmed Slip2Go success must be 200200 (not merely 200000 found)',async()=>{
+ const e=env();e.PAYMENTS_ENABLED='true';
+ const old=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify(result('200000')),{status:200});
+ try{await assert.rejects(verifySlip(makeFile(),order(),e),/สลิปไม่ผ่านเงื่อนไข/);}
+ finally{globalThis.fetch=old;}
 });
