@@ -34,7 +34,7 @@ test('read-only account API calls correct pinned endpoint with secret header',as
     assert.equal(url,'https://connect.slip2go.com/api/account/info');
     assert.equal(opts.method,'GET');
     assert.equal(opts.headers.Authorization,env.SLIP2GO_SECRET);
-    assert.equal(opts.redirect,'error');
+    assert.equal(opts.redirect,'manual');
     return reply({shopName:'Lucky Game',package:'BASIC-1',tokenRemaining:347,creditRemaining:0,
       quotaQrRemaining:90,estimatedQuotaSlip:347,packageExpiredDate:'2026-12-01T00:00:00Z'});
   };
