@@ -8,7 +8,7 @@ export function nextResetAt(now,server){
  if(!Number.isFinite(now)||!['free','vip'].includes(server))throw Error('invalid_schedule');
  let localDay=Math.floor((now+THAI_OFFSET_MS)/DAY_MS)+1;
  if(server==='free'){
-   while(new Date(localDay*DAY_MS-THAI_OFFSET_MS).getUTCDay()!==0)localDay++;
+   while(new Date(localDay*DAY_MS).getUTCDay()!==0)localDay++;
  }
  return localDay*DAY_MS-THAI_OFFSET_MS;
 }
