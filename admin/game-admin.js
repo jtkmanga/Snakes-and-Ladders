@@ -1,0 +1,194 @@
+import * as auth from './auth.js';
+const $=id=>document.getElementById(id);
+const fmtTime=value=>value?new Date(Number(value)).toLocaleString('th-TH',{timeZone:'Asia/Bangkok',dateStyle:'medium',timeStyle:'short'}):'—';
+const esc=(v)=>v==null||v===''?'—':String(v);
+let permitted=false,server='free',historyServer='free',offset=0,onlineOnly=false,editing=null,refreshing=false;
+let tick=null,toastTimer=null;
+const status=(txt,ok=false)=>{$('connection').textContent=txt;$('connection').classList.toggle('ok',ok);};
+const toast=(txt,error=false)=>{$('toast').textContent=txt;$('toast').classList.toggle('error',error);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6000)};
+async function api(path,{method='GET',body}={}){
+ if(!auth.currentUser())throw Error('กรุณาเข้าสู่ระบบ Google');
+ const token=await auth.idToken();
+ const response=await fetch(path,{method,cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',headers:{Authorization:'Bearer '+token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.error||data.reason||'HTTP '+response.status);
+ return data;
+}
+function el(tag,className,text){
+ const e=document.createElement(tag);
+ if(className)e.className=className;
+ if(text!==undefined)e.textContent=esc(text);
+ return e;
+}
+function playerRow(p){
+ const tr=document.createElement('tr');
+ const info=el('td'),n=el('strong',null,p.name||'ผู้เล่น'),email=el('small',null,p.email||'ไม่มีอีเมลในทะเบียนเดิม');
+ info.append(n,email);
+ const score=el('td','num',Number(p.score||0).toLocaleString('th-TH'));
+ const state=el('td');
+ state.append(el('span','pill'+(p.online?' online':''),p.online?'● ออนไลน์':'ออฟไลน์'));
+ const actions=el('td'),btn=el('button','edit-btn','แก้ไข');
+ btn.type='button';btn.addEventListener('click',()=>openEdit(p));
+ actions.append(btn);tr.append(info,score,state,actions);return tr;
+}
+async function refreshPlayers({append=false}={}){
+ if(!permitted||editing)return;
+ const start=append?offset:0;
+ const query=new URLSearchParams({server,online:onlineOnly?'1':'0',limit:'100',offset:String(start)});
+ const response=await api('/api/admin/board/players?'+query);
+ if(server!==response.server)return;
+ if(!append){$('players-body').replaceChildren();offset=0;}
+ for(const player of response.players||[])$('players-body').append(playerRow(player));
+ if(!append&&!response.players?.length){
+  const tr=document.createElement('tr'),td=el('td',null,'ยังไม่มีผู้เล่นในรายการนี้');td.colSpan=4;tr.append(td);$('players-body').append(tr);
+ }
+ offset+=response.players?.length||0;
+ $('pagination').textContent='แสดง '+offset+' / '+response.total+' รายการ';
+ $('load-more').hidden=offset>=response.total;
+ $('board-detail').textContent='ผู้เล่นออนไลน์ '+response.online+' คน';
+ $('last-refresh').textContent='อัปเดต '+fmtTime(Date.now());
+}
+async function refreshOverview(){
+ if(!permitted)return;
+ const responses=await Promise.all(['free','vip'].map(s=>api('/api/admin/board/players?server='+s+'&limit=1')));
+ for(const response of responses){
+  const key=response.server;
+  $(key+'-player-count').textContent=Number(response.total).toLocaleString('th-TH');
+  $(key+'-online-tag').textContent=Number(response.online)+' ออนไลน์';
+  $(key+'-next').textContent=fmtTime(response.nextReset);
+ }
+}
+function historyElement(item){
+ const box=el('article','history-item');
+ box.append(el('strong',null,(item.mode==='auto'?'🕛 อัตโนมัติ':'✋ รีเซ็ตโดยผู้ดูแล')+' • '+fmtTime(item.resetAt)));
+ box.append(el('div',null,'🏆 '+(item.name||'ไม่มีผู้ชนะ')+(item.email?' ('+item.email+')':'')+' • '+Number(item.score||0).toLocaleString('th-TH')+' คะแนน'));
+ box.append(el('small','muted','ผู้เล่นในฐานข้อมูล '+item.playerCount+' คน'));
+ return box;
+}
+async function refreshHistory(){
+ if(!permitted)return;
+ const response=await api('/api/admin/board/history?server='+historyServer);
+ $('history-list').replaceChildren();
+ if(!response.history?.length)$('history-list').append(el('p','muted','ยังไม่มีประวัติรีเซ็ตเซิร์ฟเวอร์นี้'));
+ else for(const entry of response.history)$('history-list').append(historyElement(entry));
+}
+async function refreshAudit(){
+ if(!permitted)return;
+ const response=await api('/api/admin/board/audit?server='+server);
+ $('audit-list').replaceChildren();
+ if(!response.actions?.length)$('audit-list').append(el('p','muted','ยังไม่มีประวัติการแก้ไข'));
+ else for(const record of response.actions.slice(0,25)){
+  const e=el('article','history-item');
+  e.append(el('strong',null,fmtTime(record.at)+' • '+record.action));
+  e.append(el('div',null,'ผู้ดำเนินการ: '+record.actor+(record.uid?' • ผู้เล่น: '+record.uid:'')));
+  $('audit-list').append(e);
+ }
+}
+async function refreshPrices(){
+ if(!permitted)return;
+ const response=await api('/api/admin/store/prices');
+ for(const id of ['vip','shield','win2'])$('price-'+id).value=Number(response.prices?.[id]||0);
+}
+async function reload(){
+ if(!permitted||refreshing||editing||document.visibilityState!=='visible')return;
+ refreshing=true;
+ const result=await Promise.allSettled([refreshOverview(),refreshPlayers(),refreshAudit()]);
+ const bad=result.find(x=>x.status==='rejected');
+ if(bad)toast('โหลดข้อมูลสดไม่สำเร็จ: '+bad.reason.message,true);
+ refreshing=false;
+}
+function selectServer(s){
+ if(!['free','vip'].includes(s))return;
+ server=s;offset=0;
+ for(const b of document.querySelectorAll('.server-tab'))b.classList.toggle('active',b.dataset.server===s);
+ Promise.allSettled([refreshPlayers(),refreshAudit()]).then(results=>{
+  const bad=results.find(x=>x.status==='rejected');if(bad)toast(bad.reason.message,true);
+ });
+}
+function selectHistory(s){
+ historyServer=s;
+ for(const b of document.querySelectorAll('.history-tab'))b.classList.toggle('active',b.dataset.history===s);
+ refreshHistory().catch(e=>toast(e.message,true));
+}
+function openEdit(p){
+ editing={uid:p.uid,server};
+ $('edit-identity').textContent='อีเมล: '+(p.email||'ยังไม่มีข้อมูล')+' • เซิร์ฟเวอร์ '+server.toUpperCase();
+ $('edit-name').value=p.name||'';
+ $('edit-score').value=Number(p.score||0);
+ $('edit-backdrop').hidden=false;
+ $('edit-name').focus();
+}
+function closeEdit(){$('edit-backdrop').hidden=true;editing=null;}
+async function manualReset(s){
+ if(!permitted)return;
+ if(!window.confirm('ยืนยันรีเซ็ตคะแนน '+s.toUpperCase()+' เป็น 0 ทันที? ระบบจะบันทึกผู้ชนะก่อนรีเซ็ต'))return;
+ if(!window.confirm('ยืนยันครั้งสุดท้าย: การรีเซ็ตคะแนน '+s.toUpperCase()+' ไม่สามารถย้อนกลับโดยอัตโนมัติได้'))return;
+ try{
+  const response=await api('/api/admin/board/reset',{method:'POST',body:{server:s,confirm:'RESET'}});
+  toast('รีเซ็ต '+s.toUpperCase()+' สำเร็จ • '+(response.winner?.name||'ไม่มีผู้ชนะ')+' • '+(response.winner?.score||0)+' คะแนน');
+  await Promise.all([refreshOverview(),refreshPlayers(),refreshHistory(),refreshAudit()]);
+ }catch(e){toast('รีเซ็ตไม่สำเร็จ: '+e.message,true);}
+}
+async function checkLogin(user){
+ permitted=false;
+ $('dashboard').hidden=true;
+ if(!user){
+  $('auth-box').hidden=false;$('sign-in').hidden=false;$('sign-out').hidden=true;
+  status('● ยังไม่เข้าสู่ระบบ');$('auth-note').textContent='ต้องใช้บัญชีผู้ดูแลที่กำหนดเท่านั้น';return;
+ }
+ $('sign-out').hidden=false;
+ status('● กำลังตรวจสิทธิ์ Google...');
+ try{
+  const response=await api('/api/admin/session');
+  if(!response.admin)throw Error('ไม่มีสิทธิ์ผู้ดูแล');
+  permitted=true;$('auth-box').hidden=true;$('dashboard').hidden=false;
+  status('● ผู้ดูแลที่ได้รับอนุญาต',true);
+  const settled=await Promise.allSettled([refreshOverview(),refreshPlayers(),refreshPrices(),refreshHistory(),refreshAudit()]);
+  const failed=settled.find(r=>r.status==='rejected');
+  if(failed)toast('โหลดบางส่วนไม่สำเร็จ: '+failed.reason.message,true);
+  if(!tick)tick=setInterval(reload,15000);
+ }catch(e){
+  status('● ไม่มีสิทธิ์เข้าถึง');$('auth-box').hidden=false;
+  $('auth-note').textContent=e.message;$('sign-in').hidden=true;
+ }
+}
+$('sign-in').addEventListener('click',async()=>{try{await auth.signIn()}catch(e){toast('เข้าสู่ระบบ Google ไม่สำเร็จ: '+e.message,true)}});
+$('sign-out').addEventListener('click',async()=>{await auth.logOut();permitted=false;clearInterval(tick);tick=null});
+$('refresh').addEventListener('click',()=>reload().catch(e=>toast(e.message,true)));
+$('load-more').addEventListener('click',()=>refreshPlayers({append:true}).catch(e=>toast(e.message,true)));
+$('online-only').addEventListener('change',e=>{onlineOnly=e.target.checked;offset=0;refreshPlayers().catch(err=>toast(err.message,true))});
+for(const b of document.querySelectorAll('.server-tab'))b.addEventListener('click',()=>selectServer(b.dataset.server));
+for(const b of document.querySelectorAll('.history-tab'))b.addEventListener('click',()=>selectHistory(b.dataset.history));
+$('reset-free').addEventListener('click',()=>manualReset('free'));
+$('reset-vip').addEventListener('click',()=>manualReset('vip'));
+$('refresh-history').addEventListener('click',()=>refreshHistory().catch(e=>toast(e.message,true)));
+$('refresh-audit').addEventListener('click',()=>refreshAudit().catch(e=>toast(e.message,true)));
+$('edit-close').addEventListener('click',closeEdit);
+$('edit-backdrop').addEventListener('click',e=>{if(e.target===$('edit-backdrop'))closeEdit()});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&editing)closeEdit()});
+$('edit-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(!editing)return;
+ const score=Number($('edit-score').value),name=$('edit-name').value.trim();
+ if(!name||!Number.isSafeInteger(score)||score<0||score>999999999)return toast('ชื่อหรือคะแนนไม่ถูกต้อง',true);
+ $('edit-save').disabled=true;
+ try{
+  await api('/api/admin/board/edit',{method:'POST',body:{server:editing.server,uid:editing.uid,name,score}});
+  closeEdit();toast('บันทึกข้อมูลผู้เล่นสำเร็จ');await Promise.all([refreshPlayers(),refreshOverview(),refreshAudit()]);
+ }catch(e){toast('บันทึกไม่สำเร็จ: '+e.message,true)}
+ finally{$('edit-save').disabled=false}
+});
+$('prices-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const prices={vip:Number($('price-vip').value),shield:Number($('price-shield').value),win2:Number($('price-win2').value)};
+ if(Object.values(prices).some(p=>!Number.isSafeInteger(p)||p<1||p>5000))return toast('ราคาแต่ละรายการต้องเป็นจำนวนเต็ม 1–5,000 บาท',true);
+ if(!window.confirm('ยืนยันบันทึกราคาสินค้าใหม่? มีผลเฉพาะคำสั่งซื้อที่สร้างหลังจากนี้'))return;
+ $('save-prices').disabled=true;
+ try{await api('/api/admin/store/prices',{method:'POST',body:{prices}});toast('บันทึกราคาใหม่สำเร็จ • คำสั่งซื้อเดิมยังคงยอดเดิม');await refreshPrices();}
+ catch(e){toast('บันทึกราคาไม่สำเร็จ: '+e.message,true)}
+ finally{$('save-prices').disabled=false}
+});
+(async()=>{try{
+ const r=await fetch('/api/config',{cache:'no-store'}),cfg=await r.json();
+ if(!r.ok||!cfg.firebase)throw Error('Firebase ยังไม่พร้อม');
+ await auth.initialize(cfg.firebase,checkLogin);
+}catch(e){status('● ไม่สามารถเชื่อม Google Login');$('auth-note').textContent=e.message}})();
