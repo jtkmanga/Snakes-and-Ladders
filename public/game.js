@@ -406,6 +406,7 @@ function clearPaymentQr(){
   $('payment-qr').hidden=true;$('payment-qr').removeAttribute('src');
   $('payment-qr-save').hidden=true;$('payment-qr-save').removeAttribute('href');
   $('payment-qr-disabled').hidden=false;
+  $('payment-qr-disabled').textContent='🔒 QR จะปรากฏเมื่อระบบอนุญาตให้ชำระเงินจริง';
 }
 async function loadPaymentQr(orderId){
   const r=await authorizedFetch(`/api/orders/${encodeURIComponent(orderId)}/qr`,{cache:'no-store'});
@@ -445,6 +446,61 @@ async function loadPaymentQr(orderId){
   $('payment-qr-save').href=activePaymentQrUrl;
   $('payment-qr-save').hidden=false;
   $('payment-qr-disabled').hidden=true;
+}
+async function restoreLastPayment(){
+  if(!googleUser){
+    showModal('กรุณาเข้าสู่ระบบ','ต้องใช้บัญชี Google เดิมที่สร้างคำสั่งซื้อเพื่อดูสถานะ','🔐');
+    return;
+  }
+  const panel=$('payment-panel');
+  clearPaymentQr();
+  panel.dataset.order='';
+  $('payment-qr-disabled').textContent='🔄 กำลังตรวจสอบคำสั่งซื้อเดิม…';
+  $('payment-reconcile').hidden=true;
+  $('payment-slip').disabled=true;
+  $('payment-submit').disabled=true;
+  panel.hidden=false;
+  $('payment-order').textContent='กำลังค้นหา…';
+  $('payment-amount').textContent='—';
+  $('payment-recipient').textContent='—';
+  $('payment-progress').textContent='กำลังโหลดคำสั่งซื้อที่ผูกกับบัญชี Google นี้…';
+  panel.scrollIntoView({behavior:'smooth',block:'center'});
+  try{
+    const response=await authorizedFetch('/api/orders/recent');
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||'โหลดคำสั่งซื้อเดิมไม่สำเร็จ');
+    const order=data.order;
+    if(!order){
+      $('payment-order').textContent='ไม่พบคำสั่งซื้อเดิม';
+      $('payment-progress').textContent='ยังไม่มีรายการซื้อในช่วง 7 วันที่ผ่านมา';
+      return;
+    }
+    panel.dataset.order=order.id;
+    $('payment-order').textContent=order.id;
+    $('payment-amount').textContent=order.amount+' บาท';
+    $('payment-recipient').textContent=publicConfig?.merchant?.name||'Lucky Game';
+    $('payment-reconcile').hidden=!(order.status==='verified'||order.status==='fulfilled');
+    const expired=Date.now()>order.expiresAt;
+    if(order.status==='fulfilled'){
+      $('payment-progress').textContent='✅ รายการนี้เปิดสิทธิ์สำเร็จแล้ว ไม่ต้องโอนเงินซ้ำ';
+      const userResponse=await authorizedFetch('/api/me');
+      if(userResponse.ok){serverMe=await userResponse.json();updateShopUI();}
+    }else if(order.status==='verified'){
+      $('payment-progress').textContent='✅ ตรวจสลิปผ่านแล้ว แต่สิทธิ์ยังไม่ยืนยัน กดตรวจสถานะสิทธิ์ (ห้ามโอนซ้ำ)';
+    }else if(expired){
+      $('payment-progress').textContent='⚠️ คำสั่งซื้อเก่าหมดเวลาแล้ว หากโอนไปแล้วโปรดติดต่อผู้ดูแลพร้อมหมายเลขคำสั่งซื้อ อย่าโอนซ้ำ';
+    }else if(!publicConfig?.paymentsEnabled){
+      $('payment-progress').textContent='🔒 ระบบชำระเงินจริงปิดอยู่ ไม่สามารถแสดง QR หรือส่งสลิปใหม่ได้';
+    }else{
+      $('payment-slip').disabled=false;
+      $('payment-submit').disabled=false;
+      $('payment-progress').textContent='พบคำสั่งซื้อที่ยังชำระได้ กำลังสร้าง QR เดิม…';
+      await loadPaymentQr(order.id);
+      $('payment-progress').textContent='ตรวจสอบชื่อผู้รับและยอดในแอปธนาคารก่อนโอน แล้วแนบสลิปจริง';
+    }
+  }catch(e){
+    $('payment-progress').textContent='⚠️ โหลดคำสั่งซื้อเดิมไม่สำเร็จ: '+e.message+' โปรดลองใหม่และอย่าโอนซ้ำ';
+  }
 }
 function showPaymentPreview(){
   const panel=$('payment-panel');
@@ -590,6 +646,7 @@ for(const item of ['dice','shield'])$(item==='dice'?'trial-dice':'trial-shield')
 for(const btn of document.querySelectorAll('[data-buy]'))btn.addEventListener('click',()=>buyProduct(btn.dataset.buy));
 $('vip-buy').addEventListener('click',()=>buyProduct('vip'));
 $('payment-preview').addEventListener('click',showPaymentPreview);
+$('payment-restore').addEventListener('click',restoreLastPayment);
 $('payment-submit').addEventListener('click',submitSlip);
 $('payment-reconcile').addEventListener('click',reconcilePayment);
 $('payment-close').addEventListener('click',()=>{
