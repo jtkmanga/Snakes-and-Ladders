@@ -51,7 +51,7 @@ test('mocked Slip2Go adapter sends correct multipart checks and exact server ord
   assert.equal(opts.headers.Authorization,'Bearer '+e.SLIP2GO_SECRET);
   assert.equal(opts.body.has('file'),true);
   const payload=JSON.parse(opts.body.get('payload'));
-  assert.equal(Object.hasOwn(payload,'checkDuplicate'),false);
+  assert.equal(payload.checkDuplicate,true);
   assert.deepEqual(payload.checkReceiver,[{accountType:'02001',accountNumber:e.MERCHANT_ACCOUNT_NUMBER}]);
   assert.deepEqual(payload.checkAmount,{type:'eq',amount:'100'});
   return new Response(JSON.stringify(result('200200')),{status:200,headers:{'Content-Type':'application/json'}});
