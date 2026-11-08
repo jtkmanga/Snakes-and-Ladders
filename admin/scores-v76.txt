@@ -47,7 +47,7 @@ export class Scores extends DurableObject {
     const board=await this.ensureBoard(server);
     const key='award:'+kind+':'+gameId;
     if(this.ctx.storage.kv.get(key))return false;
-    if(!board.award({id,name,avatar,points}))return false;
+    if(!board.creditOnce({awardId:key,id,name,avatar,points}))return false;
     this.ctx.storage.kv.put(key,id);
     this.ctx.storage.kv.put('leaders',board.leaders());
     return true;
