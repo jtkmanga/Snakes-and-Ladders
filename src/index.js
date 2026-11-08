@@ -52,12 +52,27 @@ export default {
       merchant:paymentPublicEnabled(env)?{name:env.MERCHANT_DISPLAY_NAME||null,method:'promptpay_qr',account:null}:null
     });
     // All mutations require a verified Firebase Google ID token and same-origin request.
-    const protectedAPI=url.pathname.startsWith('/api/admin/')||url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
+    const protectedAPI=url.pathname.startsWith('/api/admin/')||url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/payment/preflight'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
     let user=null;
     if(protectedAPI){
       if(!requireSameOrigin(request))return json({error:'Origin not allowed'},403);
       user=await getAuthorizedUser(request,env);
       if(!user)return json({error:'กรุณาเข้าสู่ระบบด้วย Google'},401);
+    }
+    // Owner-only, read-only merchant connectivity check. Does not create QR, charge, or verify slips.
+    // Works even while PAYMENTS_ENABLED=false and never returns the provider credential.
+    if(url.pathname==='/api/payment/preflight'){
+      if(request.method!=='GET')return json({error:'Method not allowed'},405);
+      if(!adminAllowed(user,env))return json({error:'ไม่มีสิทธิ์ตรวจสอบการเชื่อมต่อ Slip2Go'},403);
+      try{
+        const account=await slip2goAccountInfo(env);
+        return json({ok:true,shopName:account.shopName,package:account.package,
+          tokenRemaining:account.tokenRemaining,quotaQrRemaining:account.quotaQrRemaining,
+          paymentsEnabled:paymentConfigured(env)});
+      }catch(e){
+        const diagnostic=e instanceof Slip2GoAdminError?e.publicDiagnostic():{reason:'internal',httpStatus:null,providerCode:null};
+        return json({ok:false,error:'ตรวจสอบการเชื่อมต่อ Slip2Go ไม่สำเร็จ',diagnostic},502);
+      }
     }
     if(url.pathname.startsWith('/api/admin/')){
       // All admin endpoints require an authenticated, email-verified Google account.
@@ -97,7 +112,8 @@ export default {
       vip:await vip().hasAccess(user.id),
       items:await items().getItems(user.id),
       nickname:(await items().getProfile(user.id)).name,
-      canPurchase:paymentConfigured(env)&&paymentRolloutAllowed(env,user)
+      canPurchase:paymentConfigured(env)&&paymentRolloutAllowed(env,user),
+      canPaymentPreflight:adminAllowed(user,env)
     });
     if(url.pathname==='/api/profile'&&request.method==='POST'){
       if(Number(request.headers.get('Content-Length')||0)>1000)return json({error:'ข้อมูลชื่อใหญ่เกินไป'},413);
