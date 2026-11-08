@@ -1,5 +1,5 @@
 export class Scores extends DurableObject {
-  board(){return new AdminBoard(this.ctx.storage);}
+  board(){return this._adminBoard||(this._adminBoard=new AdminBoard(this.ctx.storage));}
   async ensureBoard(server){
     if(server!=='free'&&server!=='vip')throw Error('invalid_score_server');
     const kv=this.ctx.storage.kv;
