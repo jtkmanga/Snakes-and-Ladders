@@ -51,3 +51,13 @@ Staging is deployed via Cloudflare API with embedded static router. Repository `
 - https://slip2go.com/guide/rest-api/image
 - https://slip2go.com/guide/response
 - https://slip2go.com/guide/authentication
+
+## Payment completion pass — adapting lessons from GPT-VOXEL-3D (8 Nov 2026)
+- Reused the previously tested Slip2Go server communication contract: `Authorization: Bearer <secret>` and multipart `file` plus `payload`. Cloudflare `SLIP2GO_SECRET` remains protected; no key is placed in the frontend or repository.
+- Keep **strict provider code `200200`** for a verified sale. Code `200000` only confirms a slip was found; it must NOT grant entitlement without passed receiver/amount checks. Server also checks exact amount, recent time, and transaction reference.
+- Check duplicate transactions in two layers: Slip2Go `checkDuplicate:true` and the Durable Object's atomic `transfers` table. This is important because the same merchant/shop may be used by the older game; local game-only deduplication would not catch cross-game reuse.
+- Fingerprint the bank/sender reference (not a screenshot or decoded QR) so changing the PNG cannot create a second purchase.
+- Added authenticated `GET /api/orders/recent` and the "ตรวจคำสั่งซื้อเดิม / กู้คืนสิทธิ์" button. A user may recover their own recent pending/verified/fulfilled order after reload; a verified unfulfilled order can be reconciled without another transfer.
+- The mobile payment UI already prepares QR for VIP ฿100, win multiplier ฿20 and shield ฿10, plus PNG save and slip upload.
+- The entire public payment system remains **OFF** with `PAYMENTS_ENABLED=false`. Neither real receiving QR nor live Slip2Go check has been tested in this work pass. Live merchant API acceptance and a controlled authorized canary remain outstanding.
+- Admin UI work is paused at the merchant's request; do not depend on admin history screens for the payment flow.
