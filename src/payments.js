@@ -8,7 +8,7 @@ export const ORDER_LIFETIME_MS=15*60*1000;
 // Supply exact API origin from your Slip2Go dashboard; refuse unverified default hosts.
 export function providerEndpoint(env){
   const base=new URL(env.SLIP2GO_API_BASE_URL);
-  if(base.protocol!=='https:'||!(base.hostname==='slip2go.com'||base.hostname.endsWith('.slip2go.com'))||base.username||base.password||base.port||base.search||base.hash||base.pathname!=='/')throw Error('invalid Slip2Go API origin');
+  if(base.protocol!=='https:'||base.hostname!=='connect.slip2go.com'||base.username||base.password||base.port||base.search||base.hash||base.pathname!=='/')throw Error('invalid Slip2Go API origin');
   return new URL('/api/verify-slip/qr-image/info',base).toString();
 }
 export function paymentReadiness(env){
