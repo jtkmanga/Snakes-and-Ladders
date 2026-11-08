@@ -17,5 +17,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate V2 pure order and slip rules
-        run: node --test payments-v2/core.test.mjs
+      - name: Test Payment V2 core and read-only authentication parity diagnostics
+        run: node --test payments-v2/*.test.mjs
