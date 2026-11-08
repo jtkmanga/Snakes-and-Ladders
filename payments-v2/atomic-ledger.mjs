@@ -24,7 +24,7 @@ export class PaymentV2AtomicLedger {
     if(!validUid(uid)||typeof id!=='string')return null;
     return read(this.s,'SELECT * FROM v2_paid_orders WHERE id=? AND uid=?',id,uid);
   }
-  createPending({uid,sku,uuid}){
+  createPending({uid,sku,uuid,amountBaht}){
     if(!validUid(uid)||!Object.hasOwn(PRODUCTS_V2,sku)||!UUID.test(String(uuid||'')))
       return {ok:false,reason:'invalid_order'};
     const now=this.clock();
@@ -33,7 +33,7 @@ export class PaymentV2AtomicLedger {
       if(old)return {ok:true,reused:true,order:old};
       const n=read(this.s,'SELECT COUNT(*) AS n FROM v2_paid_orders WHERE uid=? AND created_at>?',uid,now-RECOVERY);
       if(Number(n?.n||0)>=12)return {ok:false,reason:'rate_limited'};
-      const input=createPendingOrder({uid,sku,uuid,now});
+      const input=createPendingOrder({uid,sku,uuid,now,amountBaht});
       this.s.sql.exec("INSERT INTO v2_paid_orders(id,uid,sku,amount,created_at,expires_at,status) VALUES(?,?,?,?,?,?,'pending')",input.id,uid,sku,input.amountBaht,input.createdAt,input.expiresAt);
       return {ok:true,reused:false,order:this.getOrder({id:input.id,uid})};
     });
