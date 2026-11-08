@@ -544,7 +544,13 @@ async function restoreLastPayment(){
     }else if(order.status==='verified'){
       $('payment-progress').textContent='✅ ตรวจสลิปผ่านแล้ว แต่สิทธิ์ยังไม่ยืนยัน กดตรวจสถานะสิทธิ์ (ห้ามโอนซ้ำ)';
     }else if(expired){
-      $('payment-progress').textContent='⚠️ คำสั่งซื้อเก่าหมดเวลาแล้ว หากโอนไปแล้วโปรดติดต่อผู้ดูแลพร้อมหมายเลขคำสั่งซื้อ อย่าโอนซ้ำ';
+      const recoverable=Date.now()<=order.createdAt+24*60*60*1000
+        &&Boolean(publicConfig?.paymentsEnabled||serverMe?.canPurchase);
+      $('payment-slip').disabled=!recoverable;
+      $('payment-submit').disabled=!recoverable;
+      $('payment-progress').textContent=recoverable
+        ?'⚠️ QR หมดอายุแล้ว ห้ามโอนเพิ่ม • หากโอนเงินก่อน QR หมดเวลา สามารถแนบสลิปได้ภายใน 24 ชั่วโมงหลังสร้างคำสั่งซื้อ'
+        :'⚠️ คำสั่งซื้อเก่าหมดเวลาแล้ว หากโอนไปแล้วโปรดติดต่อผู้ดูแลพร้อมหมายเลขคำสั่งซื้อ อย่าโอนซ้ำ';
     }else if(!publicConfig?.paymentsEnabled&&!serverMe?.canPurchase){
       $('payment-progress').textContent='🔒 ระบบชำระเงินจริงปิดอยู่ ไม่สามารถแสดง QR หรือส่งสลิปใหม่ได้';
     }else{
