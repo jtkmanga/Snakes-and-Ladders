@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { getAuthorizedUser, requireSameOrigin } from './security.js';
 import { PRODUCTS, paymentConfigured, paymentPublicEnabled, paymentRolloutAllowed, paymentReadiness, verifySlip, transferFingerprint } from './payments.js';
 import { createPromptPayPayload } from './promptpay.js';
+import {allowedCanaryItem,preflightBeforeMoney} from './payment-canary.js';
 import { adminAllowed, validSlipReference, slip2goAccountInfo, slip2goSlipHistory, Slip2GoAdminError } from './slip2go-admin.js';
 import qrcode from './vendor/qrcode.mjs';
 export { PaymentLedger, Inventory } from './ledger.js';
@@ -113,6 +114,7 @@ export default {
       items:await items().getItems(user.id),
       nickname:(await items().getProfile(user.id)).name,
       canPurchase:paymentConfigured(env)&&paymentRolloutAllowed(env,user),
+      paymentCanaryOnly:env.PAYMENT_ROLLOUT==='canary',
       canPaymentPreflight:adminAllowed(user,env)
     });
     if(url.pathname==='/api/profile'&&request.method==='POST'){
@@ -136,6 +138,20 @@ export default {
         if(!paymentRolloutAllowed(env,user))return json({error:'เปิดทดสอบชำระเงินเฉพาะบัญชีเจ้าของเกม'},403);
       let body;try{body=await request.json();}catch{return json({error:'Bad JSON'},400);}
       if(!PRODUCTS[body?.sku])return json({error:'ไม่มีสินค้านี้'},400);
+      if(!allowedCanaryItem(env,body.sku))
+        return json({error:'ทดสอบเงินจริงครั้งแรกได้เฉพาะไอเทมเกราะกันงู 10 บาท'},403);
+      if(env.PAYMENT_ROLLOUT==='canary'&&await ledger().hasPreviousPaid(user.id))
+        return json({error:'บัญชีทดสอบชำระสำเร็จแล้วหนึ่งรายการ กรุณาตรวจสิทธิ์ก่อนทดสอบซ้ำ'},409);
+      // Never display a live receiving QR when Slip2Go cannot authenticate the merchant,
+      // the linked shop is wrong, its package has expired, or its balance is empty.
+      try{
+        const check=await preflightBeforeMoney(env);
+        if(!check.ok)return json({error:'ยังไม่พร้อมรับเงินจริง: '+check.reason,preflightReason:check.reason},503);
+      }catch(e){
+        const diagnostic=e instanceof Slip2GoAdminError?e.publicDiagnostic()
+          :{reason:'internal',httpStatus:null,providerCode:null};
+        return json({error:'ยังไม่สามารถตรวจความพร้อม Slip2Go จึงไม่สร้าง QR รับเงิน',diagnostic},503);
+      }
       const id=`order-${crypto.randomUUID()}`;
       const created=await ledger().create({id,uid:user.id,sku:body.sku});
       if(!created.ok)return json({error:created.reason},429);
@@ -160,6 +176,7 @@ export default {
       if(action==='qr'&&request.method==='GET'){
         if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
         if(!paymentRolloutAllowed(env,user))return json({error:'เปิดทดสอบชำระเงินเฉพาะบัญชีเจ้าของเกม'},403);
+        if(!allowedCanaryItem(env,current.sku))return json({error:'Canary item not allowed'},403);
         if(current.status!=='pending'||Date.now()>current.expires_at)return json({error:'คำสั่งซื้อไม่อยู่ในสถานะชำระเงินได้'},409);
         try{
           const payload=createPromptPayPayload(env.MERCHANT_ACCOUNT_NUMBER,current.amount);
@@ -185,6 +202,7 @@ export default {
       if(action==='verify'&&request.method==='POST'){
         if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
         if(!paymentRolloutAllowed(env,user))return json({error:'เปิดทดสอบชำระเงินเฉพาะบัญชีเจ้าของเกม'},403);
+        if(!allowedCanaryItem(env,current.sku))return json({error:'Canary item not allowed'},403);
         if(Number(request.headers.get('Content-Length')||0)>4_300_000)return json({error:'ไฟล์ใหญ่เกินไป'},413);
         const lock=await ledger().takeVerification({id,uid:user.id});
         if(!lock.ok)return json({error:lock.reason},409);
