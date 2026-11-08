@@ -38,6 +38,18 @@ export class PaymentV2AtomicLedger {
       return {ok:true,reused:false,order:this.getOrder({id:input.id,uid})};
     });
   }
+  // Cancel an unpaid order if VIP capacity cannot be reserved.
+  cancelPending({id,uid}){
+    if(!validUid(uid)||typeof id!=="string")return {ok:false,reason:"invalid_order"};
+    return this.s.transactionSync(()=>{
+      const row=this.getOrder({id,uid});
+      if(!row)return {ok:false,reason:"missing_order"};
+      if(row.status==="cancelled")return {ok:true,alreadyCancelled:true};
+      if(row.status!=="pending")return {ok:false,reason:"already_processing"};
+      this.s.sql.exec("UPDATE v2_paid_orders SET status='cancelled' WHERE id=? AND uid=? AND status='pending'",id,uid);
+      return {ok:true,cancelled:true};
+    });
+  }
   beginVerification({id,uid,attemptId}){
     if(!validUid(uid)||!UUID.test(String(attemptId||'')))return {ok:false,reason:'invalid_attempt'};
     const now=this.clock();
