@@ -234,9 +234,8 @@ export class PaymentLedger extends DurableObject {
     return {ok:true,prices:checked};
   }
   priceAuditsV2(){return this.ctx.storage.kv.get('admin:prices:audit')||[];}
-  // Privacy-safe VIP purchase overview: no slips, receivers, emails, or transaction hashes.
   adminVipOrderHistory({offset=0,limit=50}={}){
-    this.paidV2(); // Ensure V2 schema exists; does not create any payment.
+    this.paidV2(); // Initialize only SQL schema; no payment/provider call.
     const off=Math.max(0,Math.trunc(Number(offset)||0));
     const size=Math.min(100,Math.max(1,Math.trunc(Number(limit)||50)));
     const total=Number(this.ctx.storage.sql.exec("SELECT COUNT(*) AS n FROM v2_paid_orders WHERE sku='vip'").toArray()[0]?.n||0);
@@ -358,4 +357,25 @@ export class Inventory extends DurableObject {
   async setProfile({uid,name}){
     if(typeof uid!=='string'||!uid||typeof name!=='string')return {ok:false,reason:'invalid_profile'};
     const clean=name.trim().normalize('NFC');
-    if(!clean||clean.length>18||/[<>\x00-\x1f\x7f]/.test(clean))return {ok:false,reason:'invalid_name' --- TRUNCATED --- 24,423 chars
+    if(!clean||clean.length>18||/[<>\x00-\x1f\x7f]/.test(clean))return {ok:false,reason:'invalid_name'};
+    const profile={name:clean,updatedAt:Date.now()};
+    this.ctx.storage.kv.put(`profile:${uid}`,profile);
+    return {ok:true,profile};
+  }
+  async getItems(uid){
+    const all=this.ctx.storage.kv.get(`inventory:${uid}`)||{};
+    return {win2:all.win2>Date.now()?all.win2:0,shield:all.shield>Date.now()?all.shield:0};
+  }
+  async grant({uid,sku,transactionId}){
+    if(!uid||!['win2','shield'].includes(sku)||!transactionId)return {ok:false};
+    const previous=this.ctx.storage.kv.get(`inventory:receipt:${transactionId}`);
+    if(previous)return previous.uid===uid&&previous.sku===sku?
+      {ok:true,alreadyApplied:true,expiresAt:previous.expiresAt}:{ok:false,reason:'duplicate_transaction'};
+    const all=this.ctx.storage.kv.get(`inventory:${uid}`)||{};
+    const expiry=Math.max(Date.now(),all[sku]||0)+86_400_000;
+    all[sku]=expiry;
+    this.ctx.storage.kv.put(`inventory:${uid}`,all);
+    this.ctx.storage.kv.put(`inventory:receipt:${transactionId}`,{uid,sku,expiresAt:expiry});
+    return {ok:true,expiresAt:expiry};
+  }
+}
