@@ -15,3 +15,7 @@
 .status-maintenance{color:#a4533f}
 @media(max-width:760px){.ban-form{grid-template-columns:1fr}.ban-form .warn{width:100%}.backup-buttons{grid-template-columns:1fr 1fr}}
 @media(max-width:370px){.backup-buttons{grid-template-columns:1fr}}
+
+/* Both Admin and Game share the public aggregated online-count endpoint. */
+.live-overview-status{margin:12px 0 5px;padding:12px 16px;background:#edf5e7;border:1px solid #c9ddc2;border-radius:13px;color:#466c4f;font-size:13px;font-weight:700;line-height:1.5;font-variant-numeric:tabular-nums}
+@media(max-width:690px){.live-overview-status{font-size:12px;padding:10px 12px}}
