@@ -58,6 +58,11 @@ export class AdminBoard {
   return true;
  }
  leaders(){return this.rows("SELECT uid AS id,name,avatar,score FROM admin_players WHERE score>0 ORDER BY score DESC,uid ASC LIMIT 50");}
+ onlineCount(now=Date.now()){
+  if(!Number.isFinite(now))throw Error('invalid_time');
+  const count=this.one("SELECT COUNT(*) AS n FROM admin_players WHERE last_seen>=?",now-ONLINE_TTL_MS);
+  return Math.max(0,Number(count?.n||0));
+ }
  players({onlineOnly=false,limit=150,offset=0,now=Date.now()}={}){
   const size=Math.min(300,Math.max(1,Number(limit)||150)),skip=Math.max(0,Number(offset)||0);
   const cutoff=now-ONLINE_TTL_MS;
