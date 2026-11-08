@@ -20,7 +20,7 @@ test('read-only provider preflight authenticates with raw Secret Key (documented
     assert.equal(url,'https://connect.slip2go.com/api/account/info');
     assert.equal(init.method,'GET');
     assert.equal(init.headers.Authorization,secret);
-    assert.equal(init.redirect,'error');
+    assert.equal(init.redirect,'manual');
     assert.equal(init.body,undefined,'preflight never creates orders or charges');
     return Response.json({code:'200001',data:{shopName:'Lucky Game',package:'BASIC-1',tokenRemaining:347,quotaQrRemaining:12}});
   });
