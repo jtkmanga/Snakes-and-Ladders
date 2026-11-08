@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { getAuthorizedUser, requireSameOrigin } from './security.js';
-import { PRODUCTS, paymentConfigured, paymentReadiness, verifySlip, transferFingerprint } from './payments.js';
+import { PRODUCTS, paymentConfigured, paymentPublicEnabled, paymentRolloutAllowed, paymentReadiness, verifySlip, transferFingerprint } from './payments.js';
 import { createPromptPayPayload } from './promptpay.js';
 import { adminAllowed, validSlipReference, slip2goAccountInfo, slip2goSlipHistory, Slip2GoAdminError } from './slip2go-admin.js';
 import qrcode from './vendor/qrcode.mjs';
@@ -41,15 +41,15 @@ export default {
     if(url.pathname==='/api/health')return json({
       ok:true,mode:'staging',game:'snakes-and-ladders',
       authConfigured:Boolean(env.FIREBASE_PROJECT_ID&&env.FIREBASE_API_KEY),
-      paymentsEnabled:paymentConfigured(env),
+      paymentsEnabled:paymentPublicEnabled(env),
       paymentReadiness:paymentReadiness(env)
     });
     if(url.pathname==='/api/config')return json({
       firebase:env.FIREBASE_PROJECT_ID&&env.FIREBASE_API_KEY&&env.FIREBASE_AUTH_DOMAIN&&env.FIREBASE_APP_ID?{
         apiKey:env.FIREBASE_API_KEY,authDomain:env.FIREBASE_AUTH_DOMAIN,projectId:env.FIREBASE_PROJECT_ID,appId:env.FIREBASE_APP_ID
       }:null,
-      paymentsEnabled:paymentConfigured(env),
-      merchant:paymentConfigured(env)?{name:env.MERCHANT_DISPLAY_NAME||null,method:'promptpay_qr',account:null}:null
+      paymentsEnabled:paymentPublicEnabled(env),
+      merchant:paymentPublicEnabled(env)?{name:env.MERCHANT_DISPLAY_NAME||null,method:'promptpay_qr',account:null}:null
     });
     // All mutations require a verified Firebase Google ID token and same-origin request.
     const protectedAPI=url.pathname.startsWith('/api/admin/')||url.pathname==='/api/me'||url.pathname==='/api/profile'||url.pathname==='/api/match'||url.pathname==='/api/orders'||url.pathname.startsWith('/api/orders/');
@@ -96,7 +96,8 @@ export default {
       id:user.id,email:user.email,
       vip:await vip().hasAccess(user.id),
       items:await items().getItems(user.id),
-      nickname:(await items().getProfile(user.id)).name
+      nickname:(await items().getProfile(user.id)).name,
+      canPurchase:paymentConfigured(env)&&paymentRolloutAllowed(env,user)
     });
     if(url.pathname==='/api/profile'&&request.method==='POST'){
       if(Number(request.headers.get('Content-Length')||0)>1000)return json({error:'ข้อมูลชื่อใหญ่เกินไป'},413);
@@ -116,6 +117,7 @@ export default {
     }
     if(url.pathname==='/api/orders'&&request.method==='POST'){
       if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
+        if(!paymentRolloutAllowed(env,user))return json({error:'เปิดทดสอบชำระเงินเฉพาะบัญชีเจ้าของเกม'},403);
       let body;try{body=await request.json();}catch{return json({error:'Bad JSON'},400);}
       if(!PRODUCTS[body?.sku])return json({error:'ไม่มีสินค้านี้'},400);
       const id=`order-${crypto.randomUUID()}`;
@@ -141,6 +143,7 @@ export default {
       // The full PromptPay number must never be serialized into public JSON or HTML.
       if(action==='qr'&&request.method==='GET'){
         if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
+        if(!paymentRolloutAllowed(env,user))return json({error:'เปิดทดสอบชำระเงินเฉพาะบัญชีเจ้าของเกม'},403);
         if(current.status!=='pending'||Date.now()>current.expires_at)return json({error:'คำสั่งซื้อไม่อยู่ในสถานะชำระเงินได้'},409);
         try{
           const payload=createPromptPayPayload(env.MERCHANT_ACCOUNT_NUMBER,current.amount);
@@ -165,6 +168,7 @@ export default {
       }
       if(action==='verify'&&request.method==='POST'){
         if(!paymentConfigured(env))return json({error:'ยังไม่เปิดรับชำระเงินจริง'},503);
+        if(!paymentRolloutAllowed(env,user))return json({error:'เปิดทดสอบชำระเงินเฉพาะบัญชีเจ้าของเกม'},403);
         if(Number(request.headers.get('Content-Length')||0)>4_300_000)return json({error:'ไฟล์ใหญ่เกินไป'},413);
         const lock=await ledger().takeVerification({id,uid:user.id});
         if(!lock.ok)return json({error:lock.reason},409);
