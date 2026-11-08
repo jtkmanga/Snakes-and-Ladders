@@ -117,7 +117,7 @@ test('non JSON, malformed replies, and network failures are classified without r
 test('only authenticated Admin receives bounded error diagnostics',()=>{
   assert.match(worker,/if\(!adminAllowed\(user,env\)\)return json\(\{error:'ไม่มีสิทธิ์ใช้งาน Admin'\},403\)/);
   assert.match(worker,/e instanceof Slip2GoAdminError/);
-  assert.match(worker,/diagnostic:e?\.publicDiagnostic\(\)/); 
+  assert.match(worker,/const diagnostic=e\.publicDiagnostic\(\)/); 
   assert.match(ui,/function explainAdminFailure\(data,status\)/);
   assert.match(ui,/'401007':'IP Whitelist/);
   assert.doesNotMatch(ui,/SLIP2GO_SECRET/);
