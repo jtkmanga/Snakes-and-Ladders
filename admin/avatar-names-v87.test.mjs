@@ -69,7 +69,7 @@ test('name updates preserve the same token DOM node and never interpret player H
   {id:'alice',name:'Alice <img src=x onerror=alert(1)>',avatar:0,pos:10},
   {id:'bob',name:'บ๊อบ',avatar:1,pos:10}
  ],lastAction:null};
- const render=new Function('document','$','game','labelForAvatar','placeToken','animateToken','animatingSeats','animationGeneration','lastAnimationKey',code);
+ const render=new Function('document','$','game','labelForAvatar','placeToken','animateToken','animatingSeats','animationGeneration','lastAnimationKey',code+'\nreturn renderTokens();');
  const call=()=>render(document,()=>layer,state,i=>['🐱','🐰'][i],()=>{},()=>{},new Set(),0,null);
  call();
  assert.equal(layer.children.length,2);
