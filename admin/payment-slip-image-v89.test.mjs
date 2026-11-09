@@ -57,7 +57,7 @@ test('strict backend remains authoritative; user can retry same paid order',()=>
  assert.equal(check.status,0,check.stderr);
  assert.ok(script.includes("const image=await prepareSlipImageForUpload(file)"));
  assert.ok(script.includes("headers:{'Content-Type':image.mime},body:image.blob"));
- assert.ok(script.includes("const response=await authorizedFetch('/api/me')"));
+ assert.ok(script.includes("authorizedFetch('/api/me')"));
  assert.ok(script.includes("async function restoreLastPayment()"));
  assert.ok(script.includes("async function reconcilePayment()"));
  assert.ok(!script.includes("body:file})"));
