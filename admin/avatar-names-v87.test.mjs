@@ -56,6 +56,7 @@ test('name updates preserve the same token DOM node and never interpret player H
    this.classes=new Set();this.classList={toggle:(name,on)=>on?this.classes.add(name):this.classes.delete(name)};this.isConnected=true;
   }
   append(...children){this.children.push(...children);}
+  appendChild(child){this.children.push(child);return child;}
   querySelector(selector){
    const match=/^\[data-seat="(\d+)"\]$/.exec(selector);
    if(match)return this.children.find(e=>e.dataset.seat===match[1])||null;
