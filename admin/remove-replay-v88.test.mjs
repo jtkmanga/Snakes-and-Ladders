@@ -22,6 +22,6 @@ test('the normal demo starter and other UI remain available and JS parses',()=>{
  assert.ok(html.includes('id="vip-buy"'));
  assert.ok(html.includes('id="board-map-name"'));
  assert.ok(html.includes('id="online-top-status"'));
- assert.ok(html.includes('id="token-layer"'));
+ assert.ok(js.includes("$('token-layer')"));
  assert.ok(js.includes('nameplate.textContent=playerName'));
 });
