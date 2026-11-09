@@ -1,0 +1,22 @@
+name: Payment V2 validation
+on:
+  push:
+    branches: [payment-v2-rebuild]
+  pull_request:
+    paths:
+      - 'payments-v2/**'
+      - 'admin/**'
+      - '.github/workflows/payment-v2-tests.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Payment V2 and Game Admin price, score, Thai reset and deployed JS regressions
+        run: node --test payments-v2/*.test.mjs admin/*.test.mjs

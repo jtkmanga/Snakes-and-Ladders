@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>Snakes & Ladders | Game Admin V81</title>
+<link rel="stylesheet" href="/game-admin.css?v=3">
+</head><body>
+<header class="topbar"><div class="brand"><span class="brand-icon">🐍</span><span><strong>Snakes & Ladders</strong><small>Game Administration</small></span></div>
+<div class="top-actions"><a href="/" class="ghost-link">กลับหน้าเกม</a><button id="sign-out" class="secondary small" hidden>ออกจากระบบ</button></div></header>
+<main>
+<section class="intro">
+<div><p class="eyebrow">ระบบจัดการเกม • Live Staging</p><h1>แผงควบคุมผู้ดูแล</h1><p class="muted">คะแนน ผู้เล่น ราคาสินค้า และประวัติการรีเซ็ต แยก Free / VIP</p></div>
+<div class="status" id="connection">● กำลังตรวจสอบสิทธิ์</div></section>
+<section id="auth-box" class="panel auth-box">
+  <h2>🔐 เข้าใช้งานด้วย Google</h2>
+  <p id="auth-note">ต้องใช้บัญชีผู้ดูแลที่เซิร์ฟเวอร์อนุญาตเท่านั้น</p>
+  <button id="sign-in" class="primary">เข้าสู่ระบบ Google</button>
+</section>
+<div id="dashboard" hidden>
+<section class="metrics">
+  <article class="metric"><div class="metric-head"><span>🌿 Free Server</span><span id="free-online-tag" class="status-chip">0 ออนไลน์</span></div>
+    <div class="metric-value" id="free-player-count">—</div><p>ผู้เล่นที่มีข้อมูลในเซิร์ฟเวอร์</p><small>รีเซ็ตถัดไป <span id="free-next">—</span></small></article>
+  <article class="metric"><div class="metric-head"><span>👑 VIP Server</span><span id="vip-online-tag" class="status-chip">0 ออนไลน์</span></div>
+    <div class="metric-value" id="vip-player-count">—</div><p>ผู้เล่นที่มีข้อมูลในเซิร์ฟเวอร์</p><small>รีเซ็ตถัดไป <span id="vip-next">—</span></small></article>
+</section>
+<div class="live-overview-status" id="online-overview-updated" role="status">🟢 กำลังตรวจจำนวนออนไลน์ Free/VIP จากเซิร์ฟเวอร์…</div>
+<div class="toolbar"><h2>ผู้เล่นและคะแนน</h2><div class="toolbar-actions"><span class="muted" id="last-refresh">—</span><button id="refresh" class="secondary">↻ รีเฟรช</button></div></div>
+<section class="panel">
+ <div class="switchbar"><button class="server-tab active" id="tab-free" data-server="free">🌿 Free Server</button>
+   <button class="server-tab" id="tab-vip" data-server="vip">👑 VIP Server</button></div>
+ <div class="filters"><label class="switch"><input type="checkbox" id="online-only"> เฉพาะผู้เล่นออนไลน์</label>
+  <span id="board-detail" class="muted">—</span></div>
+ <div class="table-scroll"><table><thead><tr><th>ชื่อผู้เล่น / อีเมล</th><th>คะแนน</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody id="players-body"><tr><td colspan="4">กำลังโหลด…</td></tr></tbody></table></div>
+ <div class="pager"><span id="pagination">—</span><button class="secondary" id="load-more" hidden>ดูผู้เล่นเพิ่ม</button></div>
+</section>
+<div class="section-grid">
+ <section class="panel">
+   <h2>⏰ รีเซ็ตตารางอันดับ</h2>
+   <p>VIP รีเซ็ตทุกวันเวลา 00:00 น. และ Free รีเซ็ตทุกวันอาทิตย์เวลา 00:00 น. (ประเทศไทย)</p>
+   <p class="warning-text">ระบบบันทึกชื่อและคะแนนผู้ชนะก่อนล้างคะแนนทุกครั้ง</p>
+   <div class="reset-buttons"><button id="reset-free" class="warn">รีเซ็ต Free ทันที</button><button id="reset-vip" class="warn">รีเซ็ต VIP ทันที</button></div>
+   <small class="muted">การรีเซ็ตด้วยมือไม่เลื่อนกำหนดการรีเซ็ตอัตโนมัติ</small>
+ </section>
+ <section class="panel">
+   <h2>💰 ตั้งราคาสินค้า</h2>
+   <p class="muted">มีผลกับคำสั่งซื้อใหม่เท่านั้น ไม่เปลี่ยนยอด QR ของคำสั่งซื้อเดิม</p>
+   <form id="prices-form">
+      <label>VIP 30 วัน (บาท)<input type="number" id="price-vip" required min="1" max="5000" step="1"></label>
+      <label>รางวัลชนะ ×2 (บาท)<input type="number" id="price-win2" required min="1" max="5000" step="1"></label>
+      <label>เกราะกันงู (บาท)<input type="number" id="price-shield" required min="1" max="5000" step="1"></label>
+      <button class="primary" type="submit" id="save-prices">บันทึกราคา</button>
+   </form>
+ </section>
+</div>
+<div class="section-grid">
+ <section class="panel">
+   <h2>🛠️ โหมดปรับปรุงเซิร์ฟเวอร์</h2>
+   <p class="muted">ปิดเฉพาะการจับคู่ห้องใหม่ ห้องที่กำลังเล่นอยู่สามารถเล่นจนจบได้ ไม่ได้ปิดระบบชำระเงิน</p>
+   <label class="maintenance-toggle"><input id="maintenance-free" type="checkbox"> <span>หยุดรับห้องใหม่ Free Server</span></label>
+   <label class="maintenance-toggle"><input id="maintenance-vip" type="checkbox"> <span>หยุดรับห้องใหม่ VIP Server</span></label>
+   <small class="muted" id="maintenance-status">กำลังตรวจสถานะ…</small>
+ </section>
+ <section class="panel">
+   <h2>💾 สำรองข้อมูลคะแนน</h2>
+   <p class="muted">ดาวน์โหลดคะแนนและรายชื่อที่มีในฐานข้อมูล ณ เวลาที่ส่งออก โดยไม่มีการแก้ไขหรือล้างคะแนน</p>
+   <div class="backup-buttons">
+     <button class="secondary" id="export-free-csv">ดาวน์โหลด Free CSV</button>
+     <button class="secondary" id="export-vip-csv">ดาวน์โหลด VIP CSV</button>
+     <button class="secondary" id="export-free-json">สำรอง Free JSON</button>
+     <button class="secondary" id="export-vip-json">สำรอง VIP JSON</button>
+   </div>
+   <small class="muted" id="export-status">ไฟล์มีข้อมูลส่วนบุคคล โปรดเก็บไว้ในที่ปลอดภัย</small>
+ </section>
+</div>
+<section class="panel">
+ <div class="toolbar"><h2>🛡️ ระงับบัญชีผู้เล่น</h2><button class="secondary" id="refresh-bans">↻ อัปเดต</button></div>
+ <p class="muted">แบนบัญชี Google นี้ในทั้ง Free และ VIP และปฏิเสธการจับคู่หรือเชื่อมต่อห้องใหม่โดยไม่ลบคะแนนหรือสิทธิ์ VIP เดิม</p>
+ <form id="ban-form" class="ban-form">
+  <label>Player UID<input id="ban-uid" type="text" maxlength="128" placeholder="UID ผู้เล่นจากตาราง" required></label>
+  <label>เหตุผล (ผู้ดูแลเห็นเท่านั้น)<input id="ban-reason" type="text" maxlength="160" placeholder="เช่น ใช้โปรแกรมโกง" required></label>
+  <button class="warn" id="ban-submit" type="submit">ระงับบัญชี</button>
+ </form>
+ <div class="toolbar"><strong>บัญชีที่ถูกระงับ</strong><span class="muted" id="bans-count">—</span></div>
+ <div id="ban-list" class="history-list"><p class="muted">ยังไม่มีข้อมูล</p></div>
+ <button id="more-bans" class="secondary" hidden>ดูเพิ่ม</button>
+</section>
+<section class="panel">
+ <div class="toolbar"><h2>🧾 ประวัติรายการ VIP</h2><button class="secondary" id="refresh-vip-transactions">↻ อัปเดต</button></div>
+ <p class="muted">แสดงเฉพาะข้อมูลคำสั่งซื้อ VIP ของ Payment V2 โดยปิดบัง UID/เลขคำสั่งซื้อบางส่วน ไม่เปิดเผยบัญชีธนาคาร รหัสตรวจสลิป หรือข้อมูลลับ</p>
+ <div class="table-scroll"><table><thead><tr><th>คำสั่งซื้อ / ผู้ซื้อ</th><th>ยอดเงิน</th><th>สถานะ</th><th>วันที่</th></tr></thead>
+  <tbody id="vip-transactions-body"><tr><td colspan="4">กำลังโหลด…</td></tr></tbody></table></div>
+ <div class="pager"><span id="vip-transactions-count">—</span><button id="more-vip-transactions" class="secondary" hidden>ดูรายการเพิ่ม</button></div>
+</section>
+<section class="panel"><div class="toolbar"><h2>🏆 ประวัติผู้ชนะก่อนรีเซ็ต</h2><button id="refresh-history" class="secondary">↻ โหลดใหม่</button></div>
+ <div class="switchbar compact"><button class="history-tab active" data-history="free">Free</button><button class="history-tab" data-history="vip">VIP</button></div>
+ <div id="history-list" class="history-list"><p class="muted">กำลังโหลด…</p></div>
+</section>
+<section class="panel"><div class="toolbar"><h2>📋 ประวัติการแก้ไขโดย Admin</h2><button id="refresh-audit" class="secondary">↻ โหลดใหม่</button></div><div id="audit-list" class="history-list"></div></section>
+<p class="footer-note">สถานะออนไลน์คำนวณจากการเชื่อมต่อ/ส่งสัญญาณในช่วง 90 วินาทีล่าสุด • อีเมล Google แก้ไขไม่ได้ • การรีเซ็ตใช้เวลาประเทศไทย</p>
+</div>
+</main>
+<div id="edit-backdrop" class="dialog-backdrop" hidden>
+ <form id="edit-form" class="dialog" role="dialog" aria-modal="true" aria-labelledby="edit-heading">
+  <button id="edit-close" type="button" class="x" aria-label="ปิด">×</button><h2 id="edit-heading">แก้ไขข้อมูลผู้เล่น</h2>
+  <p id="edit-identity" class="muted"></p>
+  <label>ชื่อในเกม<input id="edit-name" type="text" maxlength="18" required></label>
+  <label>คะแนน<input id="edit-score" type="number" min="0" max="999999999" step="1" required></label>
+  <p class="muted">อีเมลเป็นข้อมูลระบุตัวตนของ Google จึงไม่อนุญาตให้เปลี่ยน</p>
+  <button type="submit" class="primary" id="edit-save">บันทึกข้อมูล</button>
+ </form>
+</div>
+<div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+<script type="module" src="/game-admin.js?v=3"></script>
+</body></html>
