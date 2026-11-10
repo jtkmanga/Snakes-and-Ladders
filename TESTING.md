@@ -42,3 +42,9 @@ with **read-only Workers script content** permission; do not interpret a skipped
 test as passing. It fails closed if Worker V99 is upgraded without reviewing
 and repinning the expected module hash. No deployed source is committed.
 The separate **real WebSocket / browser E2E / 10K concurrency tests remain pending**.
+
+## One-time live HTTP baseline — 10 November 2026
+
+The public Staging quality workflow [run #42821717002](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/42821717002) sent 15 **read-only** real `GET /api/health` requests over 5 seconds (3 RPS, maximum 2 concurrent). **15/15 succeeded, 0 failures, P95 322 ms** on the GitHub-hosted runner. No WebSocket, login, payment or score mutation was performed. The one-off PR job was then removed; normal scheduled/manual read-only checks remain.
+
+This is a small HTTP availability baseline, **not** evidence of capacity for 10,000 live players, 3,334 live rooms, Cloudflare bill, or WebSocket reconnects. Real multiplayer tests require an isolated test Worker and separate synthetic authentication/DO namespaces.
