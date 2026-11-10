@@ -38,6 +38,9 @@ jobs:
           node --check tests/live-smoke.test.mjs
           node --check scripts/audit-deployed.mjs
           node --check scripts/load-smoke.mjs
+          node --check scripts/export-private-worker.mjs
+          node --check src/source-safety.mjs
+          node --check tests/private-export.test.mjs
 
   staging-smoke:
     name: Read-only Staging API checks
