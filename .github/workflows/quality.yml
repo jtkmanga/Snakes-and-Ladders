@@ -93,21 +93,3 @@ jobs:
           SECONDS: '3'
           RPS: '4'
           CONCURRENCY: '2'
-
-  one-time-readonly-microload:
-    name: Live Staging HTTP 15-request safety smoke (not WebSockets)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 4
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Measure 15 bounded read-only health requests
-        run: npm run load:smoke
-        env:
-          STAGING_BASE_URL: 'https://snakes-and-ladders-staging.jtkmanga.workers.dev'
-          SECONDS: '5'
-          RPS: '3'
-          CONCURRENCY: '2'
