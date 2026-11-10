@@ -1,0 +1,86 @@
+name: Staging Quality Gates (no deployment)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '15 0 * * *' # 07:15 Thailand (daily)
+  workflow_dispatch:
+    inputs:
+      run_load_smoke:
+        description: 'Run bounded Staging HTTP load smoke (max 10 RPS, 15 seconds)'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Offline contract checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Verify test file syntax
+        run: |
+          node --check src/contracts.mjs
+          node --check tests/live-smoke.test.mjs
+          node --check scripts/audit-deployed.mjs
+          node --check scripts/load-smoke.mjs
+
+  staging-smoke:
+    name: Read-only Staging API checks
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run smoke
+        env:
+          RUN_LIVE_SMOKE: '1'
+          STAGING_BASE_URL: 'https://snakes-and-ladders-staging.jtkmanga.workers.dev'
+
+  source-audit:
+    name: Optional deployed-source audit
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run audit:deployed
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+  bounded-load-smoke:
+    name: Optional safe HTTP smoke (not a 10K benchmark)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_load_smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run load:smoke
+        env:
+          SECONDS: '3'
+          RPS: '4'
+          CONCURRENCY: '2'
