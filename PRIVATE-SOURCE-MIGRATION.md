@@ -21,10 +21,12 @@ This is an **initial conservative scan**, not proof the other modules are fit fo
 3. Run the exporter from a checkout of this public repository, specifying an output directory *outside* that checkout:
 
 ```bash
-export CF_API_TOKEN='(paste privately in the terminal only)'
-export CF_ACCOUNT_ID='(your Cloudflare account ID)'
+read -r -s -p 'Cloudflare read-only API token: ' CF_API_TOKEN; echo
+export CF_API_TOKEN
+read -r -p 'Cloudflare account ID: ' CF_ACCOUNT_ID
+export CF_ACCOUNT_ID
 node scripts/export-private-worker.mjs --output ../snakes-private-snapshot
-unset CF_API_TOKEN
+unset CF_API_TOKEN CF_ACCOUNT_ID
 ```
 
 4. The exporter **refuses CI**, **refuses output inside the public checkout**, verifies exactly deployed **V99**, validates 24 filenames, writes restrictive filesystem permissions, and produces SHA-256 checksums plus warnings for sensitive modules. It never changes Cloudflare resources.
