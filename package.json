@@ -2,11 +2,14 @@
   "name": "snakes-and-ladders-quality-gates",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "test": "node --test tests/contracts.test.mjs",
+    "test": "node --test tests/contracts.test.mjs tests/private-export.test.mjs",
     "smoke": "node --test tests/live-smoke.test.mjs",
     "audit:deployed": "node scripts/audit-deployed.mjs",
-    "load:smoke": "node scripts/load-smoke.mjs"
+    "load:smoke": "node scripts/load-smoke.mjs",
+    "export:private": "node scripts/export-private-worker.mjs"
   }
 }
