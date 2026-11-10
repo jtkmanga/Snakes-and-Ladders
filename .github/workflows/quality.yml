@@ -39,6 +39,7 @@ jobs:
           node --check scripts/audit-deployed.mjs
           node --check scripts/load-smoke.mjs
           node --check scripts/export-private-worker.mjs
+          node --check scripts/test-deployed-rules.mjs
           node --check src/source-safety.mjs
           node --check tests/private-export.test.mjs
 
@@ -68,6 +69,11 @@ jobs:
         with:
           node-version: '22'
       - run: npm run audit:deployed
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      - name: Test deployed V99 game rules in memory (hash-pinned)
+        run: npm run test:deployed-rules
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
