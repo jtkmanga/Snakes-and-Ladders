@@ -10,6 +10,7 @@
     "smoke": "node --test tests/live-smoke.test.mjs",
     "audit:deployed": "node scripts/audit-deployed.mjs",
     "load:smoke": "node scripts/load-smoke.mjs",
-    "export:private": "node scripts/export-private-worker.mjs"
+    "export:private": "node scripts/export-private-worker.mjs",
+    "test:deployed-rules": "node scripts/test-deployed-rules.mjs"
   }
 }
