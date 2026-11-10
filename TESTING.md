@@ -25,3 +25,20 @@ This repository is **public**. Do **not** commit Cloudflare Worker bundles, Fire
 - Full paid-order paths require a Slip2Go sandbox/mock with strict replay/wrong-amount/wrong-receiver cases; the live smoke job deliberately cannot charge or grant entitlements.
 - 10,000 simultaneous player / Durable Objects / WebSocket capacity requires dedicated load infrastructure and a separately approved test window. The bounded smoke here measures only small-volume HTTP availability.
 - Implement a reviewed, manual promotion pipeline for production later. **This workflow never deploys anything.**
+
+
+## Real deployed V99 rules tests (optional)
+
+A dedicated read-only test script `npm run test:deployed-rules` fetches only the
+actual Cloudflare `rules.js` module, verifies the **active Worker version** and
+**SHA-256**, then executes **21 synthetic game-rule cases in memory**. It checks:
+five boards, snakes, ladders, finish-line overshoot, VIP/free player counts,
+20-second turns, shield, win multiplier, Lucky Box probabilities and excluded
+squares. It never joins real rooms or writes payments, scores, or user profiles.
+
+This job is part of the nightly/manual `source-audit` job. It **skips**
+until both `CF_API_TOKEN` and `CF_ACCOUNT_ID` Actions Secrets are configured
+with **read-only Workers script content** permission; do not interpret a skipped
+test as passing. It fails closed if Worker V99 is upgraded without reviewing
+and repinning the expected module hash. No deployed source is committed.
+The separate **real WebSocket / browser E2E / 10K concurrency tests remain pending**.
