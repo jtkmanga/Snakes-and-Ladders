@@ -83,3 +83,44 @@ testing, with a hard session cap and no persistent credentials in public CI.
 
 The public workflow stays read-only; no deployment, new billing plan, payment
 mutation, or user action is required for these smoke checks.
+
+## GitHub OIDC → private-source-free isolated VIP100 test (prepared 11 Nov 2026)
+
+The [public no-secret OIDC proof](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/43059149630)
+**passed on attempt 3** and was independently repeated on attempt 4 after removal
+of temporary Cloudflare troubleshooting logs. GitHub verified the source
+repository and minted a short-lived OIDC JWT. Cloudflare validated its RS256
+signature against pinned GitHub JWKS and enforced the exact audience and trust
+conditions. No long-lived secret was stored in this public repository.
+
+The `Isolated Load Lab OIDC identity proof` workflow is now **manual only**.
+
+- The default `run_vip100=false` performs a read-only signed-identity check.
+  It must return `labEnabled=false`; it neither arms the Lab nor creates rooms.
+- With `run_vip100=true` (separate explicit manual action), the workflow uses
+  `scripts/lab-vip100-oidc.mjs`, independently authored in this **public**
+  repository without importing private game or payment source. It connects
+  **at most 100 anonymous synthetic clients in 50 VIP rooms**, closes the
+  clients normally with WebSocket code 1000, then observes the pending
+  empty-room Alarms for 80 seconds. It hard-stops after **190 seconds**.
+  The one-off workflow job times out after 5 minutes.
+- The private Cloudflare Lab's authorization is **fail-closed**. Even a valid
+  manual-workflow OIDC JWT cannot start any synthetic clients unless a separate
+  authorized administrator has first set `LAB_ENABLED=true` with a short
+  `LAB_DISABLE_AT`. The Lab remains **disabled by default**.
+- This public test has **no private GitHub checkouts, no API keys, no payment
+  credentials, no Firebase/real user records and no real VIP entitlement**.
+  Every WebSocket connects to the hardcoded isolated Load Lab Worker only.
+  It uses the public npm `ws@8.18.3` module without install scripts.
+- The test observes client closes and room allocation. Cloudflare Workers
+  Logs and read-only Durable Objects GraphQL must separately be inspected
+  after the run to decide whether the prior `clientDisconnected/alarm`
+  classification occurred; client success alone is **not** sufficient.
+- A safe manual test window requires Cloudflare Free quota headroom, a short
+  expiry, a final independent Lab health check, and explicit shutdown
+  afterwards. **Do not click the load checkbox before the Lab is armed.**
+  No 100-player live test has been run through this new OIDC pathway yet.
+
+This validates a *free standard GitHub-hosted Runner workflow*, not free
+10,000-player service or a production deployment. The existing private V99
+game code remains private; these public scripts do not contain it.
