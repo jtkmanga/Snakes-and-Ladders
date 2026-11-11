@@ -1,0 +1,52 @@
+name: Isolated Load Lab OIDC identity proof (no secrets or game access)
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/lab-oidc-manual.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: none
+  id-token: write
+
+jobs:
+  prove-oidc:
+    name: Cryptographically prove GitHub identity to disabled Load Lab
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Request GitHub OIDC and call proof-only GET without leaking the JWT
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const host='snakes-and-ladders-game-loadlab.jtkmanga.workers.dev';
+          const audience='https://'+host+'/oidc/v1';
+          const runtimeUrl=process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          const runtimeToken=process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          assert.ok(runtimeUrl?.startsWith('https://'),'GitHub OIDC runtime URL missing');
+          assert.ok(runtimeToken,'GitHub OIDC runtime authorization unavailable');
+          const u=new URL(runtimeUrl);
+          u.searchParams.set('audience',audience);
+          const issued=await fetch(u,{
+            headers:{Authorization:'Bearer '+runtimeToken},
+            redirect:'error',signal:AbortSignal.timeout(12000)
+          });
+          assert.equal(issued.status,200,'GitHub OIDC issue failed');
+          const {value}=await issued.json();
+          assert.ok(typeof value==='string'&&value.length>128&&value.length<8192);
+          // Only pinned Load Lab receives the short-lived JWT as a request
+          // header. It is never printed, uploaded as an artifact, or stored.
+          const proof=await fetch('https://'+host+'/lab/oidc/check',{
+            method:'GET',headers:{Authorization:'Bearer '+value},
+            redirect:'error',signal:AbortSignal.timeout(15000)
+          });
+          assert.equal(proof.status,200,'Load Lab declined signed OIDC identity');
+          const json=await proof.json();
+          assert.equal(json.ok,true);
+          assert.equal(json.isolated,true);
+          assert.equal(json.proofOnly,true);
+          assert.equal(json.labEnabled,false,'Proof must never enable the Lab');
+          console.log('OIDC_CRYPTO_PROOF_PASSED: signature and trust claims accepted by disabled Lab');
+          NODE
