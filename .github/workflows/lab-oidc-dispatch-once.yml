@@ -1,0 +1,64 @@
+name: One-off guarded OIDC workflow dispatcher - temporary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/lab-oidc-dispatch-once.yml'
+
+permissions:
+  actions: write
+  contents: none
+
+concurrency:
+  group: lab-oidc-dispatch-once-20261111
+  cancel-in-progress: false
+
+jobs:
+  dispatch-exactly-once:
+    name: Dispatch existing manual workflow via ephemeral GitHub token
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Strictly validate approved one-shot commit and dispatch
+        env:
+          RUNNER_GITHUB_TOKEN: ${{ github.token }}
+          PUSH_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const repo='jtkmanga/Snakes-and-Ladders';
+          const workflow='lab-oidc-manual.yml';
+          const dry='LAB_OIDC_SAFE_DISPATCH_PROBE_20261111';
+          const live='LAB_OIDC_SAFE_DISPATCH_LIVE_20261111';
+          assert.equal(process.env.GITHUB_REPOSITORY,repo);
+          assert.equal(process.env.GITHUB_REF,'refs/heads/main');
+          assert.equal(process.env.GITHUB_EVENT_NAME,'push');
+          assert.equal(process.env.GITHUB_WORKFLOW_REF,
+            repo+'/.github/workflows/lab-oidc-dispatch-once.yml@refs/heads/main');
+          const title=String(process.env.PUSH_COMMIT_MESSAGE||'').split('\n')[0].trim();
+          assert.ok(title===dry||title===live,'Not one of the approved one-off commit titles');
+          assert.match(process.env.GITHUB_SHA||'',/^[0-9a-f]{40}$/);
+          const token=process.env.RUNNER_GITHUB_TOKEN;
+          assert.ok(typeof token==='string'&&token.length>20,'GitHub temporary token unavailable');
+          // GitHub-issued ephemeral per-job token; no repository secret or PAT.
+          // GitHub docs explicitly permit GITHUB_TOKEN to trigger workflow_dispatch.
+          const isLive=title===live;
+          const url='https://api.github.com/repos/'+repo+'/actions/workflows/'+workflow+'/dispatches';
+          const response=await fetch(url,{
+            method:'POST',
+            headers:{
+              Authorization:'Bearer '+token,
+              Accept:'application/vnd.github+json',
+              'X-GitHub-Api-Version':'2022-11-28',
+              'Content-Type':'application/json'
+            },
+            body:JSON.stringify({ref:'main',inputs:{run_vip100:isLive}}),
+            redirect:'error',signal:AbortSignal.timeout(12000)
+          });
+          if(!response.ok)throw Error('GitHub dispatch refused, HTTP '+response.status);
+          console.log('SAFE_OIDC_WORKFLOW_DISPATCH_ACCEPTED '+JSON.stringify({
+            live:isLive,workflow,githubStatus:response.status,
+            noPrivateRepository:true,noLongLivedSecret:true
+          }));
+          NODE
