@@ -1,0 +1,53 @@
+name: One-time public GitHub OIDC issuance preflight - no secrets
+
+on:
+  push:
+    branches: [ci/oidc-no-secret-preflight-20261111]
+
+permissions:
+  contents: none
+  id-token: write
+
+jobs:
+  oidc-no-secret:
+    name: Verify public runner can mint short-lived GitHub OIDC identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Assert isolated-audience OIDC token without displaying JWT
+        env:
+          EXPECTED_REF: refs/heads/ci/oidc-no-secret-preflight-20261111
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const audience='https://snakes-and-ladders-game-loadlab.jtkmanga.workers.dev/oidc/v1';
+          assert.ok(process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN);
+          const endpoint=process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          assert.ok(endpoint?.startsWith('https://'));
+          const url=new URL(endpoint);
+          url.searchParams.set('audience',audience);
+          const response=await fetch(url,{
+            headers:{Authorization:'Bearer '+process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN},
+            redirect:'error',signal:AbortSignal.timeout(10000)
+          });
+          assert.equal(response.status,200,'GitHub OIDC token endpoint rejected');
+          const {value}=await response.json();
+          assert.ok(typeof value==='string'&&value.split('.').length===3);
+          const payload=JSON.parse(Buffer.from(value.split('.')[1],'base64url').toString('utf8'));
+          // Only check claims locally here. Cloudflare must independently
+          // verify the RS256 signature against GitHub JWKS before ANY access.
+          assert.equal(payload.iss,'https://token.actions.githubusercontent.com');
+          assert.equal(payload.aud,audience);
+          assert.equal(String(payload.repository_id),'1444442347');
+          assert.equal(String(payload.repository_owner_id),'318617946');
+          assert.equal(payload.repository,'jtkmanga/Snakes-and-Ladders');
+          assert.equal(payload.repository_visibility,'public');
+          assert.equal(payload.ref,process.env.EXPECTED_REF);
+          assert.equal(payload.event_name,'push');
+          assert.equal(payload.runner_environment,'github-hosted');
+          assert.equal(payload.workflow_ref,
+            'jtkmanga/Snakes-and-Ladders/.github/workflows/oidc-preflight-once.yml@'+process.env.EXPECTED_REF);
+          assert.ok(Number.isInteger(payload.exp)&&payload.exp>Date.now()/1000);
+          assert.ok(payload.exp-payload.iat<=900,'Reject unexpectedly long-lived token');
+          console.log('OIDC_PREFLIGHT_PASS: short-lived identity minted, expected signed claims present (signature not verified in this job)');
+          NODE
