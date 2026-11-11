@@ -48,3 +48,38 @@ The separate **real WebSocket / browser E2E / 10K concurrency tests remain pendi
 The public Staging quality workflow [run #42821717002](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/42821717002) sent 15 **read-only** real `GET /api/health` requests over 5 seconds (3 RPS, maximum 2 concurrent). **15/15 succeeded, 0 failures, P95 322 ms** on the GitHub-hosted runner. No WebSocket, login, payment or score mutation was performed. The one-off PR job was then removed; normal scheduled/manual read-only checks remain.
 
 This is a small HTTP availability baseline, **not** evidence of capacity for 10,000 live players, 3,334 live rooms, Cloudflare bill, or WebSocket reconnects. Real multiplayer tests require an isolated test Worker and separate synthetic authentication/DO namespaces.
+
+## Zero-cost public-runner recovery — 11 November 2026
+
+The private game repository's GitHub Actions jobs began failing before any job steps
+started; its account has an Actions spending budget displayed as
+`$0.00 / $0.00 — Usage blocked`. **Do not make the private source public or
+increase a billing limit just to continue testing.**
+
+The existing **public** front-end repository can use standard `ubuntu-latest`
+runners at no GitHub Actions minutes charge, as documented in
+[GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+
+A one-shot [public no-secret runner probe](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/43055428984)
+**passed**. It ran on a standard public runner, made only a read-only
+unauthenticated GET to the **isolated** Lab's public health route, and
+confirmed the Lab was disabled with no production payment or user data
+bindings. The probe did not check out the Private repository, consume a
+private token, open multiplayer sessions, or perform any writes.
+
+As a safe recurring follow-up, the existing public `npm run smoke` now checks
+the isolated Lab health **schema and exposure controls** alongside the read-only
+Staging checks. This smoke accepts either enabled or disabled state because an
+explicitly authorized private synthetic test may temporarily open the Lab; it
+does not authorize or trigger such a test itself.
+
+**Still blocked:** an authenticated 100-player/50-room VIP load test cannot
+be reproduced through an unauthenticated public health check. The private game
+engine, private test harness, GitHub private Actions secrets, payment routes,
+and user identities must never be copied into this public repository. A later
+OIDC-based *short-lived and cryptographically verified* runner authorization
+or a trusted isolated external runner requires separate careful design and
+testing, with a hard session cap and no persistent credentials in public CI.
+
+The public workflow stays read-only; no deployment, new billing plan, payment
+mutation, or user action is required for these smoke checks.
