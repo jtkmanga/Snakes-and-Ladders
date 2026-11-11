@@ -1,9 +1,6 @@
 name: Isolated Load Lab OIDC identity proof (no secrets or game access)
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/lab-oidc-manual.yml']
   workflow_dispatch:
 
 permissions:
