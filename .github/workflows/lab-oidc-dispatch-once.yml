@@ -62,3 +62,4 @@ jobs:
             noPrivateRepository:true,noLongLivedSecret:true
           }));
           NODE
+# User-approved one-shot live synthetic VIP100 dispatch, 2026-11-11.
