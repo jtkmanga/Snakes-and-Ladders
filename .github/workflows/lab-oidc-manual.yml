@@ -1,19 +1,26 @@
 name: Isolated Load Lab OIDC identity proof (no secrets or game access)
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/lab-oidc-manual.yml']
   workflow_dispatch:
+    inputs:
+      run_vip100:
+        description: 'Run isolated 100-synthetic-user VIP empty-room test (requires separately enabled Lab)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: none
   id-token: write
 
+concurrency:
+  group: isolated-lab-oidc-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   prove-oidc:
     name: Cryptographically prove GitHub identity to disabled Load Lab
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && !inputs.run_vip100
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
@@ -50,3 +57,27 @@ jobs:
           assert.equal(json.labEnabled,false,'Proof must never enable the Lab');
           console.log('OIDC_CRYPTO_PROOF_PASSED: signature and trust claims accepted by disabled Lab');
           NODE
+
+  vip100-synthetic-alarm:
+    name: Manual-only isolated VIP100 50-room Alarm retest (no private code)
+    if: github.ref == 'refs/heads/main' && inputs.run_vip100
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Use pinned no-install-script WebSocket dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund ws@8.18.3
+      - name: Enforce bounded public synthetic-only code and syntax
+        run: |
+          node --check scripts/lab-vip100-oidc.mjs
+          node --test tests/lab-vip100-oidc-guard.test.mjs
+      - name: Run 100 synthetic VIP sockets and observe empty-room Alarms
+        run: node scripts/lab-vip100-oidc.mjs
+        env:
+          RUN_ISOLATED_VIP100_ALARM: 'confirmed-manual-100'
