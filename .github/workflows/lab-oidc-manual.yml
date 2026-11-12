@@ -8,6 +8,11 @@ on:
         type: boolean
         required: false
         default: false
+      run_vip100_gameplay:
+        description: 'Run isolated VIP100 dice+reconnect+no-roll test (only when Lab separately enabled)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: none
@@ -20,7 +25,7 @@ concurrency:
 jobs:
   prove-oidc:
     name: Cryptographically prove GitHub identity to disabled Load Lab
-    if: github.ref == 'refs/heads/main' && !inputs.run_vip100
+    if: github.ref == 'refs/heads/main' && !inputs.run_vip100 && !inputs.run_vip100_gameplay
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
@@ -60,7 +65,7 @@ jobs:
 
   vip100-synthetic-alarm:
     name: Manual-only isolated VIP100 50-room Alarm retest (no private code)
-    if: github.ref == 'refs/heads/main' && inputs.run_vip100
+    if: github.ref == 'refs/heads/main' && inputs.run_vip100 && !inputs.run_vip100_gameplay
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -81,3 +86,27 @@ jobs:
         run: node scripts/lab-vip100-oidc.mjs
         env:
           RUN_ISOLATED_VIP100_ALARM: 'confirmed-manual-100'
+
+  vip100-synthetic-gameplay:
+    name: Manual-only VIP100 active dice, reconnect and 3 missed turns (isolated Lab)
+    if: github.ref == 'refs/heads/main' && inputs.run_vip100_gameplay && !inputs.run_vip100
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install fixed public WebSocket client without lifecycle scripts
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund ws@8.18.3
+      - name: Verify fixed destination and hard safety limits before load
+        run: |
+          node --check scripts/lab-vip100-gameplay-oidc.mjs
+          node --test tests/lab-vip100-gameplay-oidc-guard.test.mjs
+      - name: Run at most 100 synthetic VIP players on isolated short-lived Lab
+        run: node scripts/lab-vip100-gameplay-oidc.mjs
+        env:
+          RUN_ISOLATED_VIP100_GAMEPLAY: 'confirmed-manual-100-gameplay'
