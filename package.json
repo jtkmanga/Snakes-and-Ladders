@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test tests/contracts.test.mjs tests/private-export.test.mjs tests/lab-vip100-oidc-guard.test.mjs",
+    "test": "node --test tests/contracts.test.mjs tests/private-export.test.mjs tests/lab-vip100-oidc-guard.test.mjs tests/lab-vip100-gameplay-oidc-guard.test.mjs",
     "smoke": "node --test tests/live-smoke.test.mjs tests/lab-public-smoke.test.mjs",
     "audit:deployed": "node scripts/audit-deployed.mjs",
     "load:smoke": "node scripts/load-smoke.mjs",
