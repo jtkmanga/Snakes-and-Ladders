@@ -81,8 +81,7 @@ OIDC-based *short-lived and cryptographically verified* runner authorization
 or a trusted isolated external runner requires separate careful design and
 testing, with a hard session cap and no persistent credentials in public CI.
 
-The public workflow stays read-only; no deployment, new billing plan, payment
-mutation, or user action is required for these smoke checks.
+The public **Staging smoke workflow** stays read-only; separate OIDC synthetic-load workflows require manual selection and a short-lived isolated Lab gate. No production deployment, new billing plan or payment mutation was used.
 
 ## GitHub OIDC → private-source-free isolated VIP100 test (prepared 11 Nov 2026)
 
@@ -119,7 +118,7 @@ The `Isolated Load Lab OIDC identity proof` workflow is now **manual only**.
 - A safe manual test window requires Cloudflare Free quota headroom, a short
   expiry, a final independent Lab health check, and explicit shutdown
   afterwards. **Do not click the load checkbox before the Lab is armed.**
-  No 100-player live test has been run through this new OIDC pathway yet.
+  The first 100-client OIDC empty-room test later PASSED on 11 Nov UTC / 12 Nov Thailand: [Actions #43064203619](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/43064203619). A separate 100-client active dice/reconnect run also PASSED on 12 Nov: [Actions #43135756132](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/43135756132).
 
 This validates a *free standard GitHub-hosted Runner workflow*, not free
 10,000-player service or a production deployment. The existing private V99
@@ -143,3 +142,15 @@ What a completed run must assert:
 The public Runner obtains an ephemeral signed GitHub OIDC credential at runtime; no GitHub Secrets, Private Repository checkout, Firebase, payment, VIP subscription, real user accounts, Cloudflare admin credentials or Billing changes are involved. Even a verified OIDC token **cannot activate the Lab**: a trusted administrator must separately set a finite short-lived test window. The Lab is disabled after execution.
 
 **Never claim 10K concurrent-player readiness, real-payment readiness or production approval from this bounded 100-synthetic-user test.** No user account or merchant data should enter the Lab.
+
+### Verified live gameplay result — 12 Nov 2026 (Thailand)
+
+[GitHub Actions #43135756132](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/43135756132) **PASSED** on the free standard public runner: 100 synthetic players in 50 VIP rooms, 398 server-confirmed dice rolls during 65 seconds of active gameplay and 694 across all phases. A rotated ticket correctly reconnected to the same seat without resetting the turn deadline, revoked the old WebSocket with code `4001`, and one deliberately idle room closed with `4003` after 3 missed turns while 49 other rooms / 98 clients remained connected.
+
+Cloudflare provider read-only GraphQL showed **zero `clientDisconnected/alarm` classifications** and zero CPU/memory-limit errors for the isolated test. Workers Logs showed 85 paired Alarm callbacks, 50 eventual idle room closures including **post-cleanup**, and zero Alarm exceptions; GraphQL's adaptive groups reflected 83 successful Alarm requests in a later observation, so the two analytics must not be treated as perfectly interchangeable.
+
+The isolated Lab was explicitly disabled at **08:40:42 Thailand time**, its 5 Durable Object and 3 secret bindings preserved. The one-off ephemeral GitHub dispatch bridge was removed from public `main`; the permanent OIDC workflow remains manual-only and defaults to no load. Real users, subscriptions and payment systems were never involved.
+
+This run checked server-generated dice and attempted forged dice/score fields and duplicate rolls. It **did not independently verify persistent score balances**, so complete score anti-cheat is not certified. Repeated stress, real mobile end-to-end tests, payments, Free 10K capacity and Production release remain unapproved.
+
+The real game source and personal Secret values were never copied into this public repository.
