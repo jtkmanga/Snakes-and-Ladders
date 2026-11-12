@@ -124,3 +124,22 @@ The `Isolated Load Lab OIDC identity proof` workflow is now **manual only**.
 This validates a *free standard GitHub-hosted Runner workflow*, not free
 10,000-player service or a production deployment. The existing private V99
 game code remains private; these public scripts do not contain it.
+
+## OIDC VIP100 active gameplay and reconnect regression — 12 Nov 2026
+
+The previous public OIDC synthetic test ([successful 100-client empty-room run](https://github.com/jtkmanga/Snakes-and-Ladders/actions/runs/43064203619)) verified two-seat VIP rooms and 50 idle room closures, but **did not roll dice, rotate tickets or reconnect**. This separate, independently written **public client** closes that test gap without copying private game engine or payment source.
+
+The workflow remains manual-only, with mutually exclusive boolean inputs that default to `false`. `run_vip100_gameplay=true` starts the new `scripts/lab-vip100-gameplay-oidc.mjs` job; an ordinary push, pull request or scheduled run **cannot** start the load.
+
+Strict operational bounds: hardcoded isolated `snakes-and-ladders-game-loadlab` hostname, at most **100 simultaneous synthetic VIP players / 50 two-seat rooms**, at most **101 total WebSocket instances** for exactly one planned reconnect, **230-second hard cutoff**, 5-minute GitHub job timeout. Staged admissions are 10→30→100 with at most 2 joins at once.
+
+What a completed run must assert:
+- All 100 synthetic clients see server-authored VIP game state and no exposed tickets, valid five-map selection, correct server-side six-sided dice, and rejection of client-supplied dice/score or duplicate rolls.
+- At least **200 confirmed dice rolls**, while 100 sockets remain online for around 65 seconds.
+- A single user rejoining with a rotated synthetic ticket retains the same room/seat and turn deadline, and the previous socket closes with expected code `4001`.
+- One two-player room deliberately stops rolling for three timed turns and closes with expected code `4003`, reason `no_rolls_3_turns`; the other **49 rooms / 98 clients** remain actively connected.
+- Separate Cloudflare Workers Logs and Durable Objects GraphQL are essential for a valid operational Alarm conclusion, irrespective of GitHub job success.
+
+The public Runner obtains an ephemeral signed GitHub OIDC credential at runtime; no GitHub Secrets, Private Repository checkout, Firebase, payment, VIP subscription, real user accounts, Cloudflare admin credentials or Billing changes are involved. Even a verified OIDC token **cannot activate the Lab**: a trusted administrator must separately set a finite short-lived test window. The Lab is disabled after execution.
+
+**Never claim 10K concurrent-player readiness, real-payment readiness or production approval from this bounded 100-synthetic-user test.** No user account or merchant data should enter the Lab.
