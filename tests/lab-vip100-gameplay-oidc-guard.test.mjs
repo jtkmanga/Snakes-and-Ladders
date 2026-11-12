@@ -36,7 +36,7 @@ test('live gameplay, server dice, reconnect and no-roll must all be checked',()=
  assert.match(runner,/lastRoll>=1&&next\.lastRoll<=6/);
  assert.match(runner,/before\.turnEndsAt/);
  assert.match(runner,/prior\.expected=4001/);
- assert.match(runner,/peers\.expected=4003/);
+ assert.match(runner,/x\.expected=4003/);
  assert.match(runner,/assert\.ok\(rolls>=200/);
  assert.match(runner,/assert\.equal\(openCount\(\),98\)/);
  assert.match(runner,/OIDC_VIP100_GAMEPLAY_RESULT/);
